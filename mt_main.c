@@ -1,3 +1,15 @@
+/**
+ * TODO:
+ * 	use V-bits for marking 'interesting' zones.
+ * 	evaluate using instructions instead of checking in the mt_find_segment
+ *
+ * 	ioctl
+ * 	write
+ *
+ * 	LOAD
+ * 	read
+ */
+
 #include "pub_tool_basics.h"
 #include "pub_tool_aspacemgr.h"
 #include "pub_tool_libcassert.h"
@@ -6,20 +18,78 @@
 #include "pub_tool_mallocfree.h"
 #include "pub_tool_tooliface.h"
 
-static void mt_store_1(ULong *addr, UInt data) {
-//	VG_(message)(Vg_UserMsg, "here: [%08x] = %02x!", addr, (UChar)data);
+static NSegment *mt_find_segment(ULong *addr, Char **filename) {
+	NSegment *seg = VG_(am_find_nsegment) ((Addr)addr);
+	if (seg == NULL || seg->kind != SkFileC) {
+		return NULL;
+	}
+
+	Char *name = VG_(am_get_filename) (seg);
+	tl_assert(name != NULL);
+
+	if (filename != NULL) {
+		*filename = VG_(malloc)(VG_(strlen)(name));
+		VG_(strcpy)(*filename, name);
+	}
+
+	if (VG_(strncmp)("/dev/", name, 5)
+	|| !VG_(strcmp)("/dev/zero", name)) {
+		return NULL;
+	}
+	return seg;
 }
 
-static void mt_store_2(ULong *addr, UInt data) {
-//	VG_(message)(Vg_UserMsg, "here: [%08x] = %04x!", addr, (UShort)data);
+static VG_REGPARM(2) void mt_store_1(ULong *addr, UInt data) {
+	Char *name;
+	NSegment *seg = mt_find_segment(addr, &name);
+	if (seg == NULL) {
+		return;
+	}
+	Addr realAddr = (Addr)addr - seg->start + seg->offset;
+	VG_(message)(Vg_UserMsg, "store: [%s][%08x] = %02x", name, realAddr, (UChar)data);
 }
 
-static void mt_store_4(ULong *addr, UInt data) {
-//	VG_(message)(Vg_UserMsg, "here: [%08x] = %08x!", addr, data);
+static VG_REGPARM(2) void mt_store_2(ULong *addr, UInt data) {
+	Char *name;
+	NSegment *seg = mt_find_segment(addr, &name);
+	if (seg == NULL) {
+		return;
+	}
+	Addr realAddr = (Addr)addr - seg->start + seg->offset;
+	VG_(message)(Vg_UserMsg, "store: [%s][%08x] = %04x", name, realAddr, (UShort)data);
+}
+
+static VG_REGPARM(2) void mt_store_4(ULong *addr, UInt data) {
+	Char *name;
+	NSegment *seg = mt_find_segment(addr, &name);
+	if (seg == NULL) {
+		return;
+	}
+//	if (data == 0) {
+//		return;
+//	}
+	Addr realAddr = (Addr)addr - seg->start + seg->offset;
+	VG_(message)(Vg_UserMsg, "store: [%s][%08x] = %08x", name, realAddr, data);
 }
 
 static void mt_store_8(ULong *addr, ULong data) {
-//	VG_(message)(Vg_UserMsg, "here: [%08x] = %016llx!", addr, data);
+	Char *name;
+	NSegment *seg = mt_find_segment(addr, &name);
+	if (seg == NULL) {
+		return;
+	}
+	Addr realAddr = (Addr)addr - seg->start + seg->offset;
+	VG_(message)(Vg_UserMsg, "store: [%s][%08x] = %016llx", name, realAddr, data);
+}
+
+static void mt_store_16(ULong *addr, ULong dataLo, ULong dataHi) {
+	Char *name;
+	NSegment *seg = mt_find_segment(addr, &name);
+	if (seg == NULL) {
+		return;
+	}
+	Addr realAddr = (Addr)addr - seg->start + seg->offset;
+	VG_(message)(Vg_UserMsg, "store: [%s][%08x] = %016llx%016llx", name, realAddr, dataHi, dataLo);
 }
 
 static void mt_post_clo_init(void)
@@ -50,7 +120,7 @@ IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout,
 	for (i = 0; i < bb_in->stmts_used; i++) {
 		IRStmt *st = bb_in->stmts[i];
 		IRDirty *di;
-		IRTemp temp;
+		IRTemp temp, temp2;
 
 		switch (st->tag) {
 			case Ist_Store:
@@ -61,17 +131,17 @@ IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout,
 						case Ity_I8:
 							temp = newIRTemp(bb->tyenv, Ity_I32);
 							addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_8Uto32, st->Ist.Store.data)));
-							di = unsafeIRDirty_0_N (0, "mt_store_1",
+							di = unsafeIRDirty_0_N (2, "mt_store_1",
 									&mt_store_1, mkIRExprVec_2(st->Ist.Store.addr, IRExpr_Tmp(temp)));
 							break;
 						case Ity_I16:
 							temp = newIRTemp(bb->tyenv, Ity_I32);
 							addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_16Uto32, st->Ist.Store.data)));
-							di = unsafeIRDirty_0_N (0, "mt_store_2",
+							di = unsafeIRDirty_0_N (2, "mt_store_2",
 									&mt_store_2, mkIRExprVec_2(st->Ist.Store.addr, IRExpr_Tmp(temp)));
 							break;
 						case Ity_I32:
-							di = unsafeIRDirty_0_N (0, "mt_store_4",
+							di = unsafeIRDirty_0_N (2, "mt_store_4",
 									&mt_store_4, mkIRExprVec_2(st->Ist.Store.addr, st->Ist.Store.data));
 							break;
 						case Ity_I64:
@@ -93,10 +163,18 @@ IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout,
 							di = unsafeIRDirty_0_N (0, "mt_store_8",
 									&mt_store_8, mkIRExprVec_2(st->Ist.Store.addr, IRExpr_Tmp(temp)));
 							break;
+						case Ity_V128:
+							temp = newIRTemp(bb->tyenv, Ity_I64);
+							addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_V128to64, st->Ist.Store.data)));
+							temp2 = newIRTemp(bb->tyenv, Ity_I64);
+							addStmtToIRBB(bb, IRStmt_Tmp(temp2,  IRExpr_Unop(Iop_V128HIto64, st->Ist.Store.data)));
+							di = unsafeIRDirty_0_N (0, "mt_store_16",
+									&mt_store_16, mkIRExprVec_3(st->Ist.Store.addr, IRExpr_Tmp(temp), IRExpr_Tmp(temp2)));
+							break;
 						default:
 							{
 								Char *buf = VG_(malloc)(128);
-								VG_(snprintf)(buf, 128, "unhandled type: %x!", type);
+								VG_(snprintf)(buf, 128, "unhandled type: %x", type);
 								VG_(tool_panic)(buf);
 							}
 							break;
@@ -123,26 +201,9 @@ static
 void mt_new_mem_mmap ( Addr a, SizeT len, Bool rr, Bool ww, Bool xx )
 {
 	Char *name = NULL;
-	NSegment* seg = VG_(am_find_nsegment) (a);
-	if (seg->kind == SkFileC) {
-		HChar *hname = VG_(am_get_filename) (seg);
-		tl_assert(hname != NULL);
-		name = VG_(malloc)(VG_(strlen)(hname));
-		VG_(strcpy)(name, hname);
-	}
-#if 0
-	else
-	{
-		return;
-	}
-	if (VG_(strncmp)("/dev/", name, 5)) {
-		return;
-	}
-	if (!VG_(strcmp)("/dev/zero", name)) {
-		return;
-	}
-#endif
-	VG_(message)(Vg_DebugMsg, "mmap: %s at %x size %x (%s%s%s)", name, a, len,
+	/* NSegment *seg = */mt_find_segment((ULong*) a, &name);
+
+	VG_(message)(Vg_DebugMsg, "mmap: %s at %08x size %x (%s%s%s)", name, a, len,
 			rr?"r":"-",
 			ww?"w":"-",
 			xx?"x":"-"
@@ -155,7 +216,11 @@ void mt_new_mem_mmap ( Addr a, SizeT len, Bool rr, Bool ww, Bool xx )
 
 static
 void mt_die_mem_munmap ( Addr a, SizeT len ) {
-	VG_(message)(Vg_DebugMsg, "munmap: %x of size %x", a, len);
+	VG_(message)(Vg_DebugMsg, "munmap: %08x of size %x", a, len);
+}
+
+static void mt_copy_mem_remap( Addr from, Addr to, SizeT len ) {
+	VG_(message)(Vg_DebugMsg, "mremap: %08x -> %08x of size %x", from, to, len);
 }
 
 static void mt_pre_clo_init(void)
@@ -175,6 +240,7 @@ static void mt_pre_clo_init(void)
    VG_(needs_libc_freeres)	();
    VG_(track_new_mem_startup)	(&mt_new_mem_mmap);
    VG_(track_new_mem_mmap)	(&mt_new_mem_mmap);
+   VG_(track_copy_mem_remap)	(&mt_copy_mem_remap);
    VG_(track_die_mem_munmap)	(&mt_die_mem_munmap);
 }
 
