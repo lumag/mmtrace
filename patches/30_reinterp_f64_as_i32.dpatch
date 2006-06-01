@@ -1,0 +1,36 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 30_reinterp_f64_as_i32.dpatch by  <dbaryshkov@gmail.com>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: No description.
+
+@DPATCH@
+diff -urNad valgrind-3.1.1~/VEX/priv/host-x86/isel.c valgrind-3.1.1/VEX/priv/host-x86/isel.c
+--- valgrind-3.1.1~/VEX/priv/host-x86/isel.c	2006-02-20 18:16:44.000000000 +0300
++++ valgrind-3.1.1/VEX/priv/host-x86/isel.c	2006-05-31 16:21:11.000000000 +0400
+@@ -1094,6 +1094,25 @@
+             addInstr(env, X86Instr_Sh32(Xsh_SAR, 31, dst));
+             return dst;
+          }
++         case Iop_ReinterpF32asI32: {
++            HReg rf   = iselFltExpr(env, e->Iex.Unop.arg);
++            HReg dst  = newVRegI(env);
++            X86AMode* zero_esp = X86AMode_IR(0, hregX86_ESP());
++            /* paranoia */
++            set_FPU_rounding_default(env);
++            /* subl $4, %esp */
++            sub_from_esp(env, 4);
++            /* gstF %rf, 0(%esp) */
++            addInstr(env,
++                     X86Instr_FpLdSt(False/*store*/, 4, rf, zero_esp));
++            /* movl 0(%esp), %dst */
++            addInstr(env, 
++                     X86Instr_Alu32R(Xalu_MOV, X86RMI_Mem(zero_esp), dst));
++            /* addl $8, %esp */
++            add_to_esp(env, 4);
++            return dst;
++         }
++
+          case Iop_Ctz32: {
+             /* Count trailing zeroes, implemented by x86 'bsfl' */
+             HReg dst = newVRegI(env);

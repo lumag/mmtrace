@@ -149,13 +149,10 @@ IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout,
 									&mt_store_8, mkIRExprVec_2(st->Ist.Store.addr, st->Ist.Store.data));
 							break;
  						case Ity_F32:
-/*
- * FIXME: enable when Iop_ReinterpF32asI32 is supported in the VEX
 							temp = newIRTemp(bb->tyenv, Ity_I32);
 							addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_ReinterpF32asI32, st->Ist.Store.data)));
 							di = unsafeIRDirty_0_N (0, "mt_store_4",
 									&mt_store_4, mkIRExprVec_2(st->Ist.Store.addr, IRExpr_Tmp(temp)));
-									*/
 							break;
  						case Ity_F64:
 							temp = newIRTemp(bb->tyenv, Ity_I64);
