@@ -12,15 +12,20 @@ CFLAGS = \
 	-DVGO_$(OS)=1 \
 	-DVGP_$(PLATFORM)=1 \
 	-g -Wall -Wno-pointer-sign -Werror
+
+LDLIBS = \
+	$(shell $(PKG_CONFIG) valgrind --libs)
+
 LDFLAGS = \
-	$(shell $(PKG_CONFIG) valgrind --libs) \
 	-static -Wl,-defsym,valt_load_address=$(LOAD_ADDR) \
 	-nodefaultlibs -nostartfiles -u _start \
 	-Wl,-T,valt_load_address_x86_linux.lds
 
-OBJECTS = mt_main.o
+OBJECTS = mt_main.o mt_client.o
 
 all: mmtrace
+
+include .depend
 
 mmtrace: $(OBJECTS)
 	$(LINK.o) $^ $(LOADLIBES) $(LDLIBS) -o $@
@@ -28,3 +33,6 @@ mmtrace: $(OBJECTS)
 clean:
 	-rm -f $(OBJECTS) mmtrace
 
+.PHONY: .depend
+.depend:
+	$(CC) $(CFLAGS) -M -MP $(OBJECTS:.o=.c) > .depend

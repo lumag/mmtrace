@@ -18,82 +18,94 @@
 #include "pub_tool_mallocfree.h"
 #include "pub_tool_tooliface.h"
 
-static NSegment *mt_find_segment(ULong *addr, Char **filename) {
-	NSegment *seg = VG_(am_find_nsegment) ((Addr)addr);
-	if (seg == NULL || seg->kind != SkFileC) {
+#include "mmtrace.h"
+
+#define ADDR_SIZE	(sizeof(Addr)*8 - VKI_PAGE_SHIFT)
+#define ADDR_FIRST_SHIFT	(ADDR_SIZE/2)
+#define ADDR_MAP_FIRST_SIZE	(1 << ADDR_FIRST_SHIFT)
+#define ADDR_MAP_SECOND_SIZE	(1 << (ADDR_SIZE - ADDR_FIRST_SHIFT))
+
+static const mt_mmap_trace_t**	mt_mmap_trace_table[ADDR_MAP_FIRST_SIZE];
+
+static inline const mt_mmap_trace_t* mt_mmap_trace_get(Addr a) {
+	a = a >> VKI_PAGE_SHIFT;
+	const mt_mmap_trace_t** t2 = mt_mmap_trace_table[a >> ADDR_FIRST_SHIFT];
+	if (t2 == NULL) {
 		return NULL;
+	} else {
+		return t2[ a & (ADDR_MAP_FIRST_SIZE - 1)];
 	}
-
-	Char *name = VG_(am_get_filename) (seg);
-	tl_assert(name != NULL);
-
-	if (filename != NULL) {
-		*filename = VG_(malloc)(VG_(strlen)(name));
-		VG_(strcpy)(*filename, name);
-	}
-
-	if (VG_(strncmp)("/dev/", name, 5)
-	|| !VG_(strcmp)("/dev/zero", name)) {
-		return NULL;
-	}
-	return seg;
+	return NULL;
 }
 
-static VG_REGPARM(2) void mt_store_1(ULong *addr, UInt data) {
-	Char *name;
-	NSegment *seg = mt_find_segment(addr, &name);
-	if (seg == NULL) {
-		return;
+static inline void mt_mmap_trace_set(Addr a, const mt_mmap_trace_t *entry) {
+	a = a >> VKI_PAGE_SHIFT;
+	if (mt_mmap_trace_table[a >> ADDR_FIRST_SHIFT] == NULL) {
+		mt_mmap_trace_table[a >> ADDR_FIRST_SHIFT] = VG_(calloc)(ADDR_MAP_SECOND_SIZE, sizeof(mt_mmap_trace_t**));
 	}
-	Addr realAddr = (Addr)addr - seg->start + seg->offset;
-	VG_(message)(Vg_UserMsg, "store: [%s][%08x] = %02x", name, realAddr, (UChar)data);
+	mt_mmap_trace_table[a >> ADDR_FIRST_SHIFT][a & (ADDR_MAP_FIRST_SIZE-1)] = entry;
 }
 
-static VG_REGPARM(2) void mt_store_2(ULong *addr, UInt data) {
-	Char *name;
-	NSegment *seg = mt_find_segment(addr, &name);
-	if (seg == NULL) {
-		return;
-	}
-	Addr realAddr = (Addr)addr - seg->start + seg->offset;
-	VG_(message)(Vg_UserMsg, "store: [%s][%08x] = %04x", name, realAddr, (UShort)data);
+
+#define MT_STORE_COMMON							\
+	NSegment *seg = VG_(am_find_nsegment)(addr);			\
+	tl_assert(seg != NULL);						\
+									\
+	const mt_mmap_trace_t *entry = mt_mmap_trace_get(addr);		\
+	if (entry == NULL) {						\
+		return;							\
+	}								\
+									\
+	Char *name = VG_(am_get_filename) (seg);			\
+	ULong offset = addr - seg->start + seg->offset;
+
+
+static VG_REGPARM(2) void mt_store_1(Addr addr, UInt data) {
+	MT_STORE_COMMON
+
+	entry->store_1(name, offset, data);
 }
 
-static VG_REGPARM(2) void mt_store_4(ULong *addr, UInt data) {
-	Char *name;
-	NSegment *seg = mt_find_segment(addr, &name);
-	if (seg == NULL) {
-		return;
-	}
-//	if (data == 0) {
-//		return;
-//	}
-	Addr realAddr = (Addr)addr - seg->start + seg->offset;
-	VG_(message)(Vg_UserMsg, "store: [%s][%08x] = %08x", name, realAddr, data);
+static VG_REGPARM(2) void mt_store_2(Addr addr, UInt data) {
+	MT_STORE_COMMON
+
+	entry->store_2(name, offset, data);
 }
 
-static void mt_store_8(ULong *addr, ULong data) {
-	Char *name;
-	NSegment *seg = mt_find_segment(addr, &name);
-	if (seg == NULL) {
-		return;
-	}
-	Addr realAddr = (Addr)addr - seg->start + seg->offset;
-	VG_(message)(Vg_UserMsg, "store: [%s][%08x] = %016llx", name, realAddr, data);
+static VG_REGPARM(2) void mt_store_4(Addr addr, UInt data) {
+	MT_STORE_COMMON
+
+	entry->store_4(name, offset, data);
 }
 
-static void mt_store_16(ULong *addr, ULong dataLo, ULong dataHi) {
-	Char *name;
-	NSegment *seg = mt_find_segment(addr, &name);
-	if (seg == NULL) {
-		return;
-	}
-	Addr realAddr = (Addr)addr - seg->start + seg->offset;
-	VG_(message)(Vg_UserMsg, "store: [%s][%08x] = %016llx%016llx", name, realAddr, dataHi, dataLo);
+static void mt_store_8(Addr addr, ULong data) {
+	MT_STORE_COMMON
+
+	entry->store_8(name, offset, data);
+}
+
+static void mt_store_16(Addr addr, ULong dataLo, ULong dataHi) {
+	MT_STORE_COMMON
+
+	U128 data;
+	data[3] = dataHi >> 32;
+	data[2] = dataHi & 0xffffffff;
+	data[1] = dataLo >> 32;
+	data[0] = dataLo & 0xffffffff;
+
+	entry->store_16(name, offset, data);
 }
 
 static void mt_post_clo_init(void)
 {
+	int i;
+
+	for (i = 0; i < ADDR_MAP_FIRST_SIZE; i++) {
+		if (mt_mmap_trace_table[i] != NULL) {
+			VG_(free) (mt_mmap_trace_table[i]);
+			mt_mmap_trace_table[i] = NULL;
+		}
+	}
 }
 
 static
@@ -197,17 +209,23 @@ static void mt_fini(Int exitcode)
 static
 void mt_new_mem_mmap ( Addr a, SizeT len, Bool rr, Bool ww, Bool xx )
 {
-	Char *name = NULL;
-	/* NSegment *seg = */mt_find_segment((ULong*) a, &name);
+	NSegment *seg = VG_(am_find_nsegment)(a);
+	Char *name = VG_(am_get_filename) (seg);
 
-	VG_(message)(Vg_DebugMsg, "mmap: %s at %08x size %x (%s%s%s)", name, a, len,
+	VG_(message)(Vg_DebugMsg, "mmap: %s at %08x size %x (%s%s%s)",
+			(name!=NULL)?name:(Char*)"<none>",
+			a, len,
 			rr?"r":"-",
 			ww?"w":"-",
 			xx?"x":"-"
 			);
 
-	if (name != NULL) {
-		VG_(free)(name);
+	const mt_mmap_trace_t *entry = ML_(get_mmap_trace)(seg);
+	if (entry != NULL) {
+		Addr cur;
+		for (cur = a; cur < a + len; cur += VKI_PAGE_SIZE) {
+			mt_mmap_trace_set(cur, entry);
+		}
 	}
 }
 
@@ -222,16 +240,22 @@ static void mt_copy_mem_remap( Addr from, Addr to, SizeT len ) {
 
 static void mt_pre_clo_init(void)
 {
+   int i;
+
    VG_(details_name)		("MMTrace");
    VG_(details_version)		(NULL);
    VG_(details_description)	("a binary JIT-compiler");
    VG_(details_copyright_author)(
       "Copyright (C) 2006, and GNU GPL'd, by Dmitry Baryshkov.");
-   VG_(details_bug_reports_to)	(VG_BUGS_TO);
+   VG_(details_bug_reports_to)	("dbaryshkov@gmail.com");
 
    VG_(basic_tool_funcs)	(mt_post_clo_init,
 		   		 mt_instrument,
 				 mt_fini);
+
+   for (i = 0; i < ADDR_MAP_FIRST_SIZE; i++) {
+	   mt_mmap_trace_table[i] = NULL;
+   }
 
    VG_(needs_core_errors)	();
    VG_(needs_libc_freeres)	();
