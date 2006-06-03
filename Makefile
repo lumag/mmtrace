@@ -21,7 +21,7 @@ LDFLAGS = \
 	-nodefaultlibs -nostartfiles -u _start \
 	-Wl,-T,valt_load_address_x86_linux.lds
 
-OBJECTS = mt_main.o mt_client.o
+OBJECTS = mt_main.o mt_nvidia.o
 
 all: mmtrace
 
