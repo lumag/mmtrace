@@ -33,7 +33,7 @@ static const mt_mmap_trace_t store_trace = {
 	.store_16 = &store_16,
 };
 
-const mt_mmap_trace_t *ML_(get_mmap_trace(NSegment *seg)) {
+const mt_mmap_trace_t *ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg) {
 	if (seg == NULL
 		|| seg->kind != SkFileC) {
 		return NULL;

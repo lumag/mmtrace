@@ -8,5 +8,5 @@ struct mt_mmap_trace_s {
 	void (*store_16)(Char *name, ULong offset, U128 data);
 };
 
-const mt_mmap_trace_t* ML_(get_mmap_trace)(NSegment *seg);
+const mt_mmap_trace_t* ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg);
 

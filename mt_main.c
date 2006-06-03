@@ -48,13 +48,13 @@ static inline void mt_mmap_trace_set(Addr a, const mt_mmap_trace_t *entry) {
 
 
 #define MT_STORE_COMMON							\
-	NSegment *seg = VG_(am_find_nsegment)(addr);			\
-	tl_assert(seg != NULL);						\
-									\
 	const mt_mmap_trace_t *entry = mt_mmap_trace_get(addr);		\
 	if (entry == NULL) {						\
 		return;							\
 	}								\
+									\
+	NSegment *seg = VG_(am_find_nsegment)(addr);			\
+	tl_assert(seg != NULL);						\
 									\
 	Char *name = VG_(am_get_filename) (seg);			\
 	ULong offset = addr - seg->start + seg->offset;
@@ -210,22 +210,20 @@ static
 void mt_new_mem_mmap ( Addr a, SizeT len, Bool rr, Bool ww, Bool xx )
 {
 	NSegment *seg = VG_(am_find_nsegment)(a);
-	Char *name = VG_(am_get_filename) (seg);
+	tl_assert(seg != NULL);
 
-	VG_(message)(Vg_DebugMsg, "mmap: %s at %08x size %x (%s%s%s)",
+	Char *name = VG_(am_get_filename) (seg);
+	VG_(message)(Vg_DebugMsg, "mmap: %s at %08llx to %08x size %x (%s%s%s)",
 			(name!=NULL)?name:(Char*)"<none>",
-			a, len,
+			seg->offset, a, len,
 			rr?"r":"-",
 			ww?"w":"-",
 			xx?"x":"-"
 			);
 
-	const mt_mmap_trace_t *entry = ML_(get_mmap_trace)(seg);
-	if (entry != NULL) {
-		Addr cur;
-		for (cur = a; cur < a + len; cur += VKI_PAGE_SIZE) {
-			mt_mmap_trace_set(cur, entry);
-		}
+	Addr cur;
+	for (cur = a; cur < a + len; cur += VKI_PAGE_SIZE) {
+		mt_mmap_trace_set(cur, mt_mmap_trace_t *entry = ML_(get_mmap_trace)(a, len, seg));
 	}
 }
 
