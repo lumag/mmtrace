@@ -223,7 +223,7 @@ void mt_new_mem_mmap ( Addr a, SizeT len, Bool rr, Bool ww, Bool xx )
 
 	Addr cur;
 	for (cur = a; cur < a + len; cur += VKI_PAGE_SIZE) {
-		mt_mmap_trace_set(cur, mt_mmap_trace_t *entry = ML_(get_mmap_trace)(a, len, seg));
+		mt_mmap_trace_set(cur, ML_(get_mmap_trace)(a, len, seg));
 	}
 }
 
