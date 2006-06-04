@@ -9,4 +9,4 @@ struct mt_mmap_trace_s {
 };
 
 const mt_mmap_trace_t* ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg);
-
+void ML_(trace_flush)();

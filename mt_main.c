@@ -98,14 +98,6 @@ static void mt_store_16(Addr addr, ULong dataLo, ULong dataHi) {
 
 static void mt_post_clo_init(void)
 {
-	int i;
-
-	for (i = 0; i < ADDR_MAP_FIRST_SIZE; i++) {
-		if (mt_mmap_trace_table[i] != NULL) {
-			VG_(free) (mt_mmap_trace_table[i]);
-			mt_mmap_trace_table[i] = NULL;
-		}
-	}
 }
 
 static
@@ -204,11 +196,21 @@ IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout,
 
 static void mt_fini(Int exitcode)
 {
+	ML_(trace_flush)();
+	int i;
+
+	for (i = 0; i < ADDR_MAP_FIRST_SIZE; i++) {
+		if (mt_mmap_trace_table[i] != NULL) {
+			VG_(free) (mt_mmap_trace_table[i]);
+			mt_mmap_trace_table[i] = NULL;
+		}
+	}
 }
 
 static
 void mt_new_mem_mmap ( Addr a, SizeT len, Bool rr, Bool ww, Bool xx )
 {
+	ML_(trace_flush)();
 	NSegment *seg = VG_(am_find_nsegment)(a);
 	tl_assert(seg != NULL);
 
@@ -229,10 +231,12 @@ void mt_new_mem_mmap ( Addr a, SizeT len, Bool rr, Bool ww, Bool xx )
 
 static
 void mt_die_mem_munmap ( Addr a, SizeT len ) {
+	ML_(trace_flush)();
 	VG_(message)(Vg_DebugMsg, "munmap: %08x of size %x", a, len);
 }
 
 static void mt_copy_mem_remap( Addr from, Addr to, SizeT len ) {
+	ML_(trace_flush)();
 	VG_(message)(Vg_DebugMsg, "mremap: %08x -> %08x of size %x", from, to, len);
 }
 
