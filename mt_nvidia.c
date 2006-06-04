@@ -65,7 +65,11 @@ static int fifo_cmd = 0;
 
 static void fifo_flush() {
 	if (fifo_nops != 0) {
-		VG_(message) (Vg_UserMsg, "     %d NOP skipped at %llx\n", fifo_nops, fifo_expected - fifo_nops*4);
+		if (fifo_nops == 1) {
+			VG_(message) (Vg_UserMsg, "FIFO: [%08llx] = NOP");
+		} else {
+			VG_(message) (Vg_UserMsg, "     %d NOP skipped at %08llx", fifo_nops, fifo_expected - fifo_nops*4);
+		}
 		fifo_nops = 0;
 	}
 }
@@ -84,9 +88,13 @@ static void fifo_store_4(Char *name, ULong offset, UInt data) {
 		fifo_channel = (data & 0x0000e000) >> 13;
 		fifo_cmd = data & 0x1FFF;
 
-		if (data == 0 && offset == fifo_expected) {
+		if (data == 0) {
+			if (offset != fifo_expected) {
+				fifo_flush();
+			}
+
 			fifo_nops ++;
-			fifo_expected += 4;
+			fifo_expected = offset + 4;
 			return;
 		} else {
 			fifo_flush();
@@ -147,7 +155,7 @@ const mt_mmap_trace_t *ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg) 
 	Char *name = VG_(am_get_filename) (seg);
 	tl_assert(name != NULL);
 
-	if (VG_(strncmp)("/dev/nvidia", name, 11))
+	if (VG_(strncmp)("/dev/nvidia", name, 11)) {
 		return 0;
 	}
 
