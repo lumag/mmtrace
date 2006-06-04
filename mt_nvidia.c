@@ -5,15 +5,53 @@
 #include "pub_tool_libcprint.h"
 
 #include "mmtrace.h"
+#include "mt_client_common.h"
 
 #define FIFO_SIZE1 0x102000 
 #define FIFO_SIZE2 0x103000 
+#define FIFO_SIZE3 0x101000 
 
 static void stub_1(Char *name, ULong offset, UChar data) {VG_(tool_panic)("1");}
 static void stub_2(Char *name, ULong offset, UShort data) {VG_(tool_panic)("2");}
 static void stub_4(Char *name, ULong offset, UInt data) {VG_(tool_panic)("4");}
 static void stub_8(Char *name, ULong offset, ULong data) {VG_(tool_panic)("8");}
 static void stub_16(Char *name, ULong offset, U128 data) {VG_(tool_panic)("16");}
+
+static Char* zero_fname = "";
+static ULong zero_start = 0;
+static ULong zero_expect = 0;
+
+static void smart_store_4_flush() {
+	if (zero_start != zero_expect) {
+		if (zero_expect - zero_start > 8) {
+				VG_(message)(Vg_UserMsg, "store: [%s] zeroed at %08llx - %08llx (size %08llx)", zero_fname, zero_start, zero_expect - 1, zero_expect - zero_start);
+		} else {
+			ULong o;
+			for (o = zero_start; o < zero_expect; o += 4) {
+				store_4(zero_fname, o, 0);
+			}
+		}
+
+		zero_start = zero_expect = 0;
+		zero_fname = "";
+	}
+}
+static void smart_store_4(Char *name, ULong offset, UInt data) {
+	if (data == 0 && offset == zero_expect && !VG_(strcmp)(zero_fname, name)) {
+		zero_expect += 4;
+		return;
+	}
+	smart_store_4_flush();
+	if (data == 0) {
+		zero_start = offset;
+		zero_expect = offset + 4;
+		zero_fname = name;
+		return;
+	}
+
+	store_4(name, offset, data);
+}
+
 
 static ULong fifo_cmdstart = 0;
 static ULong fifo_expected = 0;
@@ -24,6 +62,13 @@ static int fifo_channel = 0;
 static int fifo_cmd = 0;
 
 #define BUFSIZ 1024
+
+static void fifo_flush() {
+	if (fifo_nops != 0) {
+		VG_(message) (Vg_UserMsg, "     %d NOP skipped at %llx\n", fifo_nops, fifo_expected - fifo_nops*4);
+		fifo_nops = 0;
+	}
+}
 
 static void fifo_store_4(Char *name, ULong offset, UInt data) {
 	static char buf[BUFSIZ];
@@ -44,10 +89,7 @@ static void fifo_store_4(Char *name, ULong offset, UInt data) {
 			fifo_expected += 4;
 			return;
 		} else {
-			if (fifo_nops != 0) {
-				VG_(message) (Vg_UserMsg, "     %d NOP skipped at %llx\n", fifo_nops, fifo_expected - fifo_nops*4);
-				fifo_nops = 0;
-			}
+			fifo_flush();
 
 			pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, "  {size: 0x%-3x   channel: 0x%-1x   cmd:   ", fifo_cmdlen, fifo_channel);
 			// FIXME: cmd name
@@ -61,6 +103,23 @@ static void fifo_store_4(Char *name, ULong offset, UInt data) {
 
 	VG_(message)(Vg_UserMsg, buf);
 }
+
+static void fifo_store_16(Char *name, ULong offset, U128 data) {
+	VG_(message)(Vg_DebugMsg, "FIFO: emulating fast 16-byte write by 4 typical ones");
+	int i;
+	for (i = 0; i < 4; i++)
+		fifo_store_4(name, offset + i * 4, data[i]);
+}
+
+
+static const mt_mmap_trace_t store_trace = {
+	.store_1 = &store_1,
+	.store_2 = &store_2,
+	.store_4 = &smart_store_4,
+	.store_8 = &store_8,
+	.store_16 = &store_16,
+};
+
 
 static const mt_mmap_trace_t stub_trace = {
 	.store_1 = &stub_1,
@@ -76,7 +135,7 @@ static const mt_mmap_trace_t fifo_trace = {
 	.store_2 = &stub_2,
 	.store_4 = &fifo_store_4,
 	.store_8 = &stub_8,
-	.store_16 = &stub_16,
+	.store_16 = &fifo_store_16,
 };
 
 const mt_mmap_trace_t *ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg) {
@@ -88,17 +147,21 @@ const mt_mmap_trace_t *ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg) 
 	Char *name = VG_(am_get_filename) (seg);
 	tl_assert(name != NULL);
 
-	if (VG_(strncmp)("/dev/", name, 5)
-	|| !VG_(strcmp)("/dev/zero", name)) {
+	if (VG_(strncmp)("/dev/nvidia", name, 11))
 		return 0;
 	}
 
-	VG_(message)(Vg_UserMsg, "map: %08x %08llx size %x", seg->start, seg->offset, len);
+//	VG_(message)(Vg_UserMsg, "map: %08x %08llx size %x", seg->start, seg->offset, len);
 
-	if (len == FIFO_SIZE1 || len == FIFO_SIZE2) {
-		VG_(message)(Vg_UserMsg, "detected FIFO map");
+	if (len == FIFO_SIZE1 || len == FIFO_SIZE2 || len == FIFO_SIZE3) {
+//		VG_(message)(Vg_UserMsg, "detected FIFO map");
 		return &fifo_trace;
 	}
 
-	return NULL;
+	return &store_trace;
+}
+
+void ML_(trace_flush)() {
+	fifo_flush();
+	smart_store_4_flush();
 }
