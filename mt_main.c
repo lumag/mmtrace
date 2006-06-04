@@ -232,12 +232,24 @@ void mt_new_mem_mmap ( Addr a, SizeT len, Bool rr, Bool ww, Bool xx )
 static
 void mt_die_mem_munmap ( Addr a, SizeT len ) {
 	ML_(trace_flush)();
+	// There segment has been already marked as free, so we cannot get original mappings.
 	VG_(message)(Vg_DebugMsg, "munmap: %08x of size %x", a, len);
+
+	Addr cur;
+	for (cur = a; cur < a + len; cur += VKI_PAGE_SIZE) {
+		mt_mmap_trace_set(cur, NULL);
+	}
 }
 
 static void mt_copy_mem_remap( Addr from, Addr to, SizeT len ) {
 	ML_(trace_flush)();
 	VG_(message)(Vg_DebugMsg, "mremap: %08x -> %08x of size %x", from, to, len);
+
+	Addr cur, curnew;
+	for (cur = from, curnew = to; cur < from + len; cur += VKI_PAGE_SIZE, curnew += VKI_PAGE_SIZE) {
+		mt_mmap_trace_set(cur, mt_mmap_trace_get(curnew));
+		mt_mmap_trace_set(curnew, NULL);
+	}
 }
 
 static void mt_pre_clo_init(void)
