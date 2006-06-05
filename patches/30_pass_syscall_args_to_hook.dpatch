@@ -1,0 +1,102 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 30_pass_syscall_args_to_hook.dpatch by  <dbaryshkov@gmail.com>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: No description.
+
+@DPATCH@
+diff -urNad valgrind-3.1.1~/coregrind/m_syswrap/priv_types_n_macros.h valgrind-3.1.1/coregrind/m_syswrap/priv_types_n_macros.h
+--- valgrind-3.1.1~/coregrind/m_syswrap/priv_types_n_macros.h	2006-02-20 18:16:37.000000000 +0300
++++ valgrind-3.1.1/coregrind/m_syswrap/priv_types_n_macros.h	2006-06-05 00:29:32.000000000 +0400
+@@ -47,19 +47,6 @@
+    Types that are used in syscall wrappers.
+    ------------------------------------------------------------------ */
+ 
+-/* Arguments for a syscall. */
+-typedef
+-   struct {
+-      UWord sysno;
+-      UWord arg1;
+-      UWord arg2;
+-      UWord arg3;
+-      UWord arg4;
+-      UWord arg5;
+-      UWord arg6;
+-   }
+-   SyscallArgs;
+-
+ /* Current status of a syscall being done on behalf of the client. */
+ typedef
+    struct {
+diff -urNad valgrind-3.1.1~/coregrind/m_syswrap/syswrap-main.c valgrind-3.1.1/coregrind/m_syswrap/syswrap-main.c
+--- valgrind-3.1.1~/coregrind/m_syswrap/syswrap-main.c	2006-02-20 18:16:37.000000000 +0300
++++ valgrind-3.1.1/coregrind/m_syswrap/syswrap-main.c	2006-06-05 00:30:31.000000000 +0400
+@@ -650,7 +650,7 @@
+ 
+    /* Do any pre-syscall actions */
+    if (VG_(needs).syscall_wrapper) {
+-      VG_TDICT_CALL(tool_pre_syscall, tid, sysno);
++      VG_TDICT_CALL(tool_pre_syscall, tid, sysno, &sci->args);
+    }
+ 
+    vg_assert(ent);
+diff -urNad valgrind-3.1.1~/coregrind/m_tooliface.c valgrind-3.1.1/coregrind/m_tooliface.c
+--- valgrind-3.1.1~/coregrind/m_tooliface.c	2006-02-20 18:16:42.000000000 +0300
++++ valgrind-3.1.1/coregrind/m_tooliface.c	2006-06-05 00:29:32.000000000 +0400
+@@ -205,7 +205,7 @@
+ }
+ 
+ void VG_(needs_syscall_wrapper)(
+-   void(*pre) (ThreadId, UInt),
++   void(*pre) (ThreadId, UInt, SyscallArgs*),
+    void(*post)(ThreadId, UInt, SysRes res)
+ )
+ {
+diff -urNad valgrind-3.1.1~/coregrind/pub_core_tooliface.h valgrind-3.1.1/coregrind/pub_core_tooliface.h
+--- valgrind-3.1.1~/coregrind/pub_core_tooliface.h	2006-02-20 18:16:42.000000000 +0300
++++ valgrind-3.1.1/coregrind/pub_core_tooliface.h	2006-06-05 00:29:32.000000000 +0400
+@@ -133,7 +133,7 @@
+    Bool (*tool_handle_client_request)(ThreadId, UWord*, UWord*);
+ 
+    // VG_(needs).syscall_wrapper
+-   void (*tool_pre_syscall) (ThreadId, UInt);
++   void (*tool_pre_syscall) (ThreadId, UInt, SyscallArgs*);
+    void (*tool_post_syscall)(ThreadId, UInt, SysRes);
+ 
+    // VG_(needs).sanity_checks
+diff -urNad valgrind-3.1.1~/include/pub_tool_basics.h valgrind-3.1.1/include/pub_tool_basics.h
+--- valgrind-3.1.1~/include/pub_tool_basics.h	2006-02-20 18:16:25.000000000 +0300
++++ valgrind-3.1.1/include/pub_tool_basics.h	2006-06-05 00:29:32.000000000 +0400
+@@ -107,6 +107,20 @@
+ }
+ SysRes;
+ 
++
++/* Arguments for a syscall. */
++typedef
++   struct {
++      UWord sysno;
++      UWord arg1;
++      UWord arg2;
++      UWord arg3;
++      UWord arg4;
++      UWord arg5;
++      UWord arg6;
++   }
++   SyscallArgs;
++
+ /* ---------------------------------------------------------------------
+    Miscellaneous (word size, endianness, regparmness, stringification)
+    ------------------------------------------------------------------ */
+diff -urNad valgrind-3.1.1~/include/pub_tool_tooliface.h valgrind-3.1.1/include/pub_tool_tooliface.h
+--- valgrind-3.1.1~/include/pub_tool_tooliface.h	2006-02-20 18:16:25.000000000 +0300
++++ valgrind-3.1.1/include/pub_tool_tooliface.h	2006-06-05 00:29:32.000000000 +0400
+@@ -249,7 +249,7 @@
+ // Nb: If either of the pre_ functions malloc() something to return, the
+ // corresponding post_ function had better free() it!
+ extern void VG_(needs_syscall_wrapper) (
+-   void (* pre_syscall)(ThreadId tid, UInt syscallno),
++   void (* pre_syscall)(ThreadId tid, UInt syscallno, SyscallArgs* args),
+    void (*post_syscall)(ThreadId tid, UInt syscallno, SysRes res)
+ );
+ 

@@ -15,4 +15,3 @@ static void store_16(Char *name, ULong offset, U128 data) {
 	VG_(message)(Vg_UserMsg, "store: [%s][%08llx] = %08x%08x%08x%08x", name, offset, data[3], data[2], data[1], data[0]);
 }
 
-

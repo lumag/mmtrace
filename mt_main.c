@@ -18,6 +18,8 @@
 #include "pub_tool_mallocfree.h"
 #include "pub_tool_tooliface.h"
 
+#include <sys/syscall.h>
+
 #include "mmtrace.h"
 
 #define ADDR_SIZE	(sizeof(Addr)*8 - VKI_PAGE_SHIFT)
@@ -207,6 +209,20 @@ static void mt_fini(Int exitcode)
 	}
 }
 
+static void mt_pre_syscall(ThreadId tid, UInt syscallno, SyscallArgs* args) {
+	ML_(trace_flush)();
+//	VG_(message)(Vg_DebugMsg, "syscall: %d, %d, %d ...", syscallno, args->arg1, args->arg2);
+	if (syscallno == SYS_ioctl) {
+		ML_(trace_pre_ioctl)(args->arg1, args->arg2, (void*)args->arg3);
+	}
+}
+
+static void mt_post_syscall(ThreadId tid, UInt syscallno, SysRes res) {
+	if (syscallno == SYS_ioctl) {
+		ML_(trace_post_ioctl)(res);
+	}
+}
+
 static
 void mt_new_mem_mmap ( Addr a, SizeT len, Bool rr, Bool ww, Bool xx )
 {
@@ -217,7 +233,7 @@ void mt_new_mem_mmap ( Addr a, SizeT len, Bool rr, Bool ww, Bool xx )
 	Char *name = VG_(am_get_filename) (seg);
 	VG_(message)(Vg_DebugMsg, "mmap: %s at %08llx to %08x size %x (%s%s%s)",
 			(name!=NULL)?name:(Char*)"<none>",
-			seg->offset, a, len,
+			seg->offset + a - seg->start, a, len,
 			rr?"r":"-",
 			ww?"w":"-",
 			xx?"x":"-"
@@ -277,6 +293,9 @@ static void mt_pre_clo_init(void)
    VG_(track_new_mem_mmap)	(&mt_new_mem_mmap);
    VG_(track_copy_mem_remap)	(&mt_copy_mem_remap);
    VG_(track_die_mem_munmap)	(&mt_die_mem_munmap);
+
+   VG_(needs_syscall_wrapper)	(&mt_pre_syscall,
+		   		 &mt_post_syscall);
 }
 
 VG_DETERMINE_INTERFACE_VERSION(mt_pre_clo_init)

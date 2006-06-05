@@ -34,3 +34,12 @@ const mt_mmap_trace_t *ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg) 
 
 void ML_(trace_flush)() {
 }
+
+void ML_(trace_pre_ioctl)(Int fd, Int request, void* arg) {
+	VG_(message)(Vg_DebugMsg, "ioctl: fd=%d  request=%08x, arg=%08x", fd, request, arg);
+}
+
+void ML_(trace_post_ioctl)(SysRes res) {
+	VG_(message)(Vg_DebugMsg, "ioctl returned %d", res.val);
+}
+

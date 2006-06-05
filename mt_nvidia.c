@@ -7,10 +7,6 @@
 #include "mmtrace.h"
 #include "mt_client_common.h"
 
-#define FIFO_SIZE1 0x102000 
-#define FIFO_SIZE2 0x103000 
-#define FIFO_SIZE3 0x101000 
-
 static void stub_1(Char *name, ULong offset, UChar data) {VG_(tool_panic)("1");}
 static void stub_2(Char *name, ULong offset, UShort data) {VG_(tool_panic)("2");}
 static void stub_4(Char *name, ULong offset, UInt data) {VG_(tool_panic)("4");}
@@ -41,7 +37,7 @@ static void smart_store_4(Char *name, ULong offset, UInt data) {
 		zero_expect += 4;
 		return;
 	}
-	smart_store_4_flush();
+	ML_(trace_flush)();
 	if (data == 0) {
 		zero_start = offset;
 		zero_expect = offset + 4;
@@ -65,8 +61,12 @@ static int fifo_cmd = 0;
 
 static void fifo_flush() {
 	if (fifo_nops != 0) {
-		if (fifo_nops == 1) {
-			VG_(message) (Vg_UserMsg, "FIFO: [%08llx] = NOP");
+		if (fifo_nops < 5) {
+			ULong o = fifo_expected - fifo_nops*4;
+			int i;
+			for (i = 0; i < fifo_nops; i++) {
+				VG_(message) (Vg_UserMsg, "FIFO: [%08llx] = NOP", o + i*4);
+			}
 		} else {
 			VG_(message) (Vg_UserMsg, "     %d NOP skipped at %08llx", fifo_nops, fifo_expected - fifo_nops*4);
 		}
@@ -97,7 +97,7 @@ static void fifo_store_4(Char *name, ULong offset, UInt data) {
 			fifo_expected = offset + 4;
 			return;
 		} else {
-			fifo_flush();
+			ML_(trace_flush)();
 
 			pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, "  {size: 0x%-3x   channel: 0x%-1x   cmd:   ", fifo_cmdlen, fifo_channel);
 			// FIXME: cmd name
@@ -117,6 +117,20 @@ static void fifo_store_16(Char *name, ULong offset, U128 data) {
 	int i;
 	for (i = 0; i < 4; i++)
 		fifo_store_4(name, offset + i * 4, data[i]);
+}
+
+static Bool this_ioctl_trace = False;
+
+void ML_(trace_pre_ioctl)(Int fd, Int request, void* arg) {
+	VG_(message)(Vg_DebugMsg, "ioctl: fd=%d  request=%08x, arg=%08x", fd, request, arg);
+	this_ioctl_trace = True;
+}
+
+void ML_(trace_post_ioctl)(SysRes res) {
+	if (this_ioctl_trace) {
+		this_ioctl_trace = False;
+		VG_(message)(Vg_DebugMsg, "ioctl returned %d", res.val);
+	}
 }
 
 
@@ -145,6 +159,10 @@ static const mt_mmap_trace_t fifo_trace = {
 	.store_8 = &stub_8,
 	.store_16 = &fifo_store_16,
 };
+
+#define FIFO_SIZE1 0x102000 
+#define FIFO_SIZE2 0x103000 
+#define FIFO_SIZE3 0x101000 
 
 const mt_mmap_trace_t *ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg) {
 	if (seg == NULL
