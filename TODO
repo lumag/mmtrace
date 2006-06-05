@@ -1,0 +1,13 @@
+TODO:
+
+main binary:
+* instrument LOAD's
+* handle read, write syscalls
+
+dummy client:
+
+nvidia client:
+* reveng basic nv ioctls and parse results
+        (have to replace /proc/*/maps parsing, etc).
+* import all information from renoveau
+* reveng, reveng, reveng...

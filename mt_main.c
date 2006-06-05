@@ -1,15 +1,3 @@
-/**
- * TODO:
- * 	use V-bits for marking 'interesting' zones.
- * 	evaluate using instructions instead of checking in the mt_find_segment
- *
- * 	ioctl
- * 	write
- *
- * 	LOAD
- * 	read
- */
-
 #include "pub_tool_basics.h"
 #include "pub_tool_aspacemgr.h"
 #include "pub_tool_libcassert.h"
