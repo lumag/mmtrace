@@ -29,7 +29,8 @@ const mt_mmap_trace_t *ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg) 
 		return 0;
 	}*/
 
-	return &store_trace;
+//	return &store_trace;
+	return NULL;
 }
 
 void ML_(trace_flush)() {
@@ -37,6 +38,13 @@ void ML_(trace_flush)() {
 
 void ML_(trace_pre_ioctl)(Int fd, Int request, void* arg) {
 	VG_(message)(Vg_DebugMsg, "ioctl: fd=%d  request=%08x, arg=%08x", fd, request, arg);
+
+	int ioctl_dir = _VKI_IOC_DIR(request);
+	int ioctl_type = _VKI_IOC_TYPE(request);
+	int ioctl_nr = _VKI_IOC_NR(request);
+	int ioctl_size = _VKI_IOC_SIZE(request);
+
+	VG_(message)(Vg_DebugMsg, "dir=%d, type=%d, nr=%d, size=%d", ioctl_dir, ioctl_type, ioctl_nr, ioctl_size);
 }
 
 void ML_(trace_post_ioctl)(SysRes res) {
