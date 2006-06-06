@@ -37,7 +37,7 @@ static inline void mt_mmap_trace_set(Addr a, const mt_mmap_trace_t *entry) {
 }
 
 
-#define MT_STORE_COMMON							\
+#define MT_TRACE_COMMON							\
 	const mt_mmap_trace_t *entry = mt_mmap_trace_get(addr);		\
 	if (entry == NULL) {						\
 		return;							\
@@ -51,31 +51,31 @@ static inline void mt_mmap_trace_set(Addr a, const mt_mmap_trace_t *entry) {
 
 
 static VG_REGPARM(2) void mt_store_1(Addr addr, UInt data) {
-	MT_STORE_COMMON
+	MT_TRACE_COMMON
 
 	entry->store_1(name, offset, data);
 }
 
 static VG_REGPARM(2) void mt_store_2(Addr addr, UInt data) {
-	MT_STORE_COMMON
+	MT_TRACE_COMMON
 
 	entry->store_2(name, offset, data);
 }
 
 static VG_REGPARM(2) void mt_store_4(Addr addr, UInt data) {
-	MT_STORE_COMMON
+	MT_TRACE_COMMON
 
 	entry->store_4(name, offset, data);
 }
 
 static void mt_store_8(Addr addr, ULong data) {
-	MT_STORE_COMMON
+	MT_TRACE_COMMON
 
 	entry->store_8(name, offset, data);
 }
 
 static void mt_store_16(Addr addr, ULong dataLo, ULong dataHi) {
-	MT_STORE_COMMON
+	MT_TRACE_COMMON
 
 	U128 data;
 	data[3] = dataHi >> 32;
@@ -86,10 +86,235 @@ static void mt_store_16(Addr addr, ULong dataLo, ULong dataHi) {
 	entry->store_16(name, offset, data);
 }
 
-static void mt_post_clo_init(void)
-{
+static VG_REGPARM(2) void mt_load_1(Addr addr, UInt data) {
+	MT_TRACE_COMMON
+
+	entry->load_1(name, offset, data);
 }
 
+static VG_REGPARM(2) void mt_load_2(Addr addr, UInt data) {
+	MT_TRACE_COMMON
+
+	entry->load_2(name, offset, data);
+}
+
+static VG_REGPARM(2) void mt_load_4(Addr addr, UInt data) {
+	MT_TRACE_COMMON
+
+	entry->load_4(name, offset, data);
+}
+
+static void mt_load_8(Addr addr, ULong data) {
+	MT_TRACE_COMMON
+
+	entry->load_8(name, offset, data);
+}
+
+static void mt_load_16(Addr addr, ULong dataLo, ULong dataHi) {
+	MT_TRACE_COMMON
+
+	U128 data;
+	data[3] = dataHi >> 32;
+	data[2] = dataHi & 0xffffffff;
+	data[1] = dataLo >> 32;
+	data[0] = dataLo & 0xffffffff;
+
+	entry->load_16(name, offset, data);
+}
+
+static void mt_post_clo_init(void) {
+}
+
+static IRExpr* mt_make_atom_expr(IRBB *bb, IRExpr *expr) {
+	if (isIRAtom(expr)) {
+		return expr;
+	} else {
+		IRTemp temp = newIRTemp(bb->tyenv, typeOfIRExpr(bb->tyenv, expr));
+		addStmtToIRBB(bb, IRStmt_Tmp(temp, expr));
+		return IRExpr_Tmp(temp);
+	}
+}
+
+static void mt_instrument_load(IRBB* bb, IRExpr* addr, IRExpr *data) {
+	Char buf[128];
+	IRDirty *di;
+	IRTemp temp, temp2;
+	IRType type = typeOfIRExpr(bb->tyenv, data);
+
+	switch (type) {
+		case Ity_I8:
+			temp = newIRTemp(bb->tyenv, Ity_I32);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_8Uto32, data)));
+			di = unsafeIRDirty_0_N (2, "mt_load_1",
+					&mt_load_1, mkIRExprVec_2(addr, IRExpr_Tmp(temp)));
+			break;
+		case Ity_I16:
+			temp = newIRTemp(bb->tyenv, Ity_I32);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_16Uto32, data)));
+			di = unsafeIRDirty_0_N (2, "mt_load_2",
+					&mt_load_2, mkIRExprVec_2(addr, IRExpr_Tmp(temp)));
+			break;
+		case Ity_I32:
+			di = unsafeIRDirty_0_N (2, "mt_load_4",
+					&mt_load_4, mkIRExprVec_2(addr, data));
+			break;
+		case Ity_I64:
+			di = unsafeIRDirty_0_N (0, "mt_load_8",
+					&mt_load_8, mkIRExprVec_2(addr, data));
+			break;
+		case Ity_F32:
+			temp = newIRTemp(bb->tyenv, Ity_I32);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_ReinterpF32asI32, data)));
+			di = unsafeIRDirty_0_N (0, "mt_load_4",
+					&mt_load_4, mkIRExprVec_2(addr, IRExpr_Tmp(temp)));
+			break;
+		case Ity_F64:
+			temp = newIRTemp(bb->tyenv, Ity_I64);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_ReinterpF64asI64, data)));
+			di = unsafeIRDirty_0_N (0, "mt_load_8",
+					&mt_load_8, mkIRExprVec_2(addr, IRExpr_Tmp(temp)));
+			break;
+		case Ity_I128:
+			temp = newIRTemp(bb->tyenv, Ity_I64);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_128to64, data)));
+			temp2 = newIRTemp(bb->tyenv, Ity_I64);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp2,  IRExpr_Unop(Iop_128HIto64, data)));
+			di = unsafeIRDirty_0_N (0, "mt_load_16",
+					&mt_load_16, mkIRExprVec_3(addr, IRExpr_Tmp(temp), IRExpr_Tmp(temp2)));
+			break;
+		case Ity_V128:
+			temp = newIRTemp(bb->tyenv, Ity_I64);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_V128to64, data)));
+			temp2 = newIRTemp(bb->tyenv, Ity_I64);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp2,  IRExpr_Unop(Iop_V128HIto64, data)));
+			di = unsafeIRDirty_0_N (0, "mt_load_16",
+					&mt_load_16, mkIRExprVec_3(addr, IRExpr_Tmp(temp), IRExpr_Tmp(temp2)));
+			break;
+		default:
+			VG_(snprintf)(buf, sizeof(buf), "unhandled type: %x", type);
+			VG_(tool_panic)(buf);
+			break;
+	}
+	addStmtToIRBB(bb, IRStmt_Dirty(di));
+}
+
+static void mt_instrument_store(IRBB* bb, IRExpr* addr, IRExpr* data) {
+	Char buf[128];
+	IRDirty *di;
+	IRTemp temp, temp2;
+	IRType type = typeOfIRExpr(bb->tyenv, data);
+
+	switch (type) {
+		case Ity_I8:
+			temp = newIRTemp(bb->tyenv, Ity_I32);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_8Uto32, data)));
+			di = unsafeIRDirty_0_N (2, "mt_store_1",
+					&mt_store_1, mkIRExprVec_2(addr, IRExpr_Tmp(temp)));
+			break;
+		case Ity_I16:
+			temp = newIRTemp(bb->tyenv, Ity_I32);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_16Uto32, data)));
+			di = unsafeIRDirty_0_N (2, "mt_store_2",
+					&mt_store_2, mkIRExprVec_2(addr, IRExpr_Tmp(temp)));
+			break;
+		case Ity_I32:
+			di = unsafeIRDirty_0_N (2, "mt_store_4",
+					&mt_store_4, mkIRExprVec_2(addr, data));
+			break;
+		case Ity_I64:
+			di = unsafeIRDirty_0_N (0, "mt_store_8",
+					&mt_store_8, mkIRExprVec_2(addr, data));
+			break;
+		case Ity_F32:
+			temp = newIRTemp(bb->tyenv, Ity_I32);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_ReinterpF32asI32, data)));
+			di = unsafeIRDirty_0_N (0, "mt_store_4",
+					&mt_store_4, mkIRExprVec_2(addr, IRExpr_Tmp(temp)));
+			break;
+		case Ity_F64:
+			temp = newIRTemp(bb->tyenv, Ity_I64);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_ReinterpF64asI64, data)));
+			di = unsafeIRDirty_0_N (0, "mt_store_8",
+					&mt_store_8, mkIRExprVec_2(addr, IRExpr_Tmp(temp)));
+			break;
+		case Ity_I128:
+			temp = newIRTemp(bb->tyenv, Ity_I64);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_128to64, data)));
+			temp2 = newIRTemp(bb->tyenv, Ity_I64);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp2,  IRExpr_Unop(Iop_128HIto64, data)));
+			di = unsafeIRDirty_0_N (0, "mt_store_16",
+					&mt_store_16, mkIRExprVec_3(addr, IRExpr_Tmp(temp), IRExpr_Tmp(temp2)));
+			break;
+		case Ity_V128:
+			temp = newIRTemp(bb->tyenv, Ity_I64);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_V128to64, data)));
+			temp2 = newIRTemp(bb->tyenv, Ity_I64);
+			addStmtToIRBB(bb, IRStmt_Tmp(temp2,  IRExpr_Unop(Iop_V128HIto64, data)));
+			di = unsafeIRDirty_0_N (0, "mt_store_16",
+					&mt_store_16, mkIRExprVec_3(addr, IRExpr_Tmp(temp), IRExpr_Tmp(temp2)));
+			break;
+		default:
+			VG_(snprintf)(buf, sizeof(buf), "unhandled type: %x", type);
+			VG_(tool_panic)(buf);
+			break;
+	}
+	addStmtToIRBB(bb, IRStmt_Dirty(di));
+}
+
+static void mt_instrument_expr(IRBB *bb, IRExpr **expr) {
+	IRExpr **args = NULL;
+	Char buf[128];
+	IRTemp temp;
+
+	tl_assert(expr != NULL);
+	tl_assert(*expr != NULL);
+
+	switch ((*expr)->tag) {
+		case Iex_Binder:
+		case Iex_Get:
+		case Iex_Tmp:
+		case Iex_Const:
+			// Do nothing.
+			break;
+		case Iex_GetI:
+			mt_instrument_expr(bb, &(*expr)->Iex.GetI.ix);
+			break;
+		case Iex_Binop:
+			mt_instrument_expr(bb, &(*expr)->Iex.Binop.arg1);
+			mt_instrument_expr(bb, &(*expr)->Iex.Binop.arg2);
+			break;
+		case Iex_Unop:
+			mt_instrument_expr(bb, &(*expr)->Iex.Unop.arg);
+			break;
+		case Iex_Load:
+			mt_instrument_expr(bb, &(*expr)->Iex.Load.addr);
+
+			IRExpr *addr = mt_make_atom_expr(bb, (*expr)->Iex.Load.addr);
+
+			temp = newIRTemp(bb->tyenv, (*expr)->Iex.Load.ty);
+			
+			addStmtToIRBB(bb, IRStmt_Tmp(temp, IRExpr_Load((*expr)->Iex.Load.end, (*expr)->Iex.Load.ty, addr)));
+
+			mt_instrument_load(bb, addr, IRExpr_Tmp(temp));
+
+			*expr = IRExpr_Tmp(temp);
+
+			break;
+		case Iex_CCall:
+			for (args = (*expr)->Iex.CCall.args; *args != NULL; args++) {
+				mt_instrument_expr(bb, *&args);
+			}
+			break;
+		case Iex_Mux0X:
+			mt_instrument_expr(bb, &(*expr)->Iex.Mux0X.cond);
+			mt_instrument_expr(bb, &(*expr)->Iex.Mux0X.expr0);
+			mt_instrument_expr(bb, &(*expr)->Iex.Mux0X.exprX);
+			break;
+		default:
+			VG_(snprintf)(buf, sizeof(buf), "unhandled expression: %d", (*expr)->tag);
+			VG_(tool_panic)(buf);
+	}
+}
 static
 IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout, 
                     Addr64 orig_addr_noredir, VexGuestExtents* vge,
@@ -97,6 +322,7 @@ IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout,
 {
 	IRBB *bb;
 	int i;
+	Char buf[128];
 
 	if (gWordTy != hWordTy) {
 		/* We don't currently support this case. */
@@ -113,80 +339,50 @@ IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout,
 
 	for (i = 0; i < bb_in->stmts_used; i++) {
 		IRStmt *st = bb_in->stmts[i];
-		IRDirty *di;
-		IRTemp temp, temp2;
 
 		switch (st->tag) {
+			case Ist_NoOp:
+			case Ist_IMark:
+			case Ist_MFence:
+				// do nothing.
+				break;
+			case Ist_AbiHint:
+				mt_instrument_expr(bb, &st->Ist.AbiHint.base);
+				break;
+			case Ist_Put:
+				mt_instrument_expr(bb, &st->Ist.Put.data);
+				break;
+			case Ist_PutI:
+				mt_instrument_expr(bb, &st->Ist.PutI.ix);
+				mt_instrument_expr(bb, &st->Ist.PutI.data);
+				break;
+			case Ist_Tmp:
+				mt_instrument_expr(bb, &st->Ist.Tmp.data);
+				break;
 			case Ist_Store:
-				{
-					di = NULL;
-					IRType type = typeOfIRExpr(bb->tyenv, st->Ist.Store.data);
-					switch (type) {
-						case Ity_I8:
-							temp = newIRTemp(bb->tyenv, Ity_I32);
-							addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_8Uto32, st->Ist.Store.data)));
-							di = unsafeIRDirty_0_N (2, "mt_store_1",
-									&mt_store_1, mkIRExprVec_2(st->Ist.Store.addr, IRExpr_Tmp(temp)));
-							break;
-						case Ity_I16:
-							temp = newIRTemp(bb->tyenv, Ity_I32);
-							addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_16Uto32, st->Ist.Store.data)));
-							di = unsafeIRDirty_0_N (2, "mt_store_2",
-									&mt_store_2, mkIRExprVec_2(st->Ist.Store.addr, IRExpr_Tmp(temp)));
-							break;
-						case Ity_I32:
-							di = unsafeIRDirty_0_N (2, "mt_store_4",
-									&mt_store_4, mkIRExprVec_2(st->Ist.Store.addr, st->Ist.Store.data));
-							break;
-						case Ity_I64:
-							di = unsafeIRDirty_0_N (0, "mt_store_8",
-									&mt_store_8, mkIRExprVec_2(st->Ist.Store.addr, st->Ist.Store.data));
-							break;
- 						case Ity_F32:
-							temp = newIRTemp(bb->tyenv, Ity_I32);
-							addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_ReinterpF32asI32, st->Ist.Store.data)));
-							di = unsafeIRDirty_0_N (0, "mt_store_4",
-									&mt_store_4, mkIRExprVec_2(st->Ist.Store.addr, IRExpr_Tmp(temp)));
-							break;
- 						case Ity_F64:
-							temp = newIRTemp(bb->tyenv, Ity_I64);
-							addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_ReinterpF64asI64, st->Ist.Store.data)));
-							di = unsafeIRDirty_0_N (0, "mt_store_8",
-									&mt_store_8, mkIRExprVec_2(st->Ist.Store.addr, IRExpr_Tmp(temp)));
-							break;
-						case Ity_I128:
-							temp = newIRTemp(bb->tyenv, Ity_I64);
-							addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_128to64, st->Ist.Store.data)));
-							temp2 = newIRTemp(bb->tyenv, Ity_I64);
-							addStmtToIRBB(bb, IRStmt_Tmp(temp2,  IRExpr_Unop(Iop_128HIto64, st->Ist.Store.data)));
-							di = unsafeIRDirty_0_N (0, "mt_store_16",
-									&mt_store_16, mkIRExprVec_3(st->Ist.Store.addr, IRExpr_Tmp(temp), IRExpr_Tmp(temp2)));
-							break;
-						case Ity_V128:
-							temp = newIRTemp(bb->tyenv, Ity_I64);
-							addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_V128to64, st->Ist.Store.data)));
-							temp2 = newIRTemp(bb->tyenv, Ity_I64);
-							addStmtToIRBB(bb, IRStmt_Tmp(temp2,  IRExpr_Unop(Iop_V128HIto64, st->Ist.Store.data)));
-							di = unsafeIRDirty_0_N (0, "mt_store_16",
-									&mt_store_16, mkIRExprVec_3(st->Ist.Store.addr, IRExpr_Tmp(temp), IRExpr_Tmp(temp2)));
-							break;
-						default:
-							{
-								Char *buf = VG_(malloc)(128);
-								VG_(snprintf)(buf, 128, "unhandled type: %x", type);
-								VG_(tool_panic)(buf);
-							}
-							break;
-					}
-					if (di != NULL) {
-						addStmtToIRBB(bb, IRStmt_Dirty(di));
-					}
-					addStmtToIRBB(bb, st);
+				mt_instrument_expr(bb, &st->Ist.Store.addr);
+				mt_instrument_expr(bb, &st->Ist.Store.data);
+
+				IRExpr *addr = mt_make_atom_expr(bb, st->Ist.Store.addr);
+				IRExpr *data = mt_make_atom_expr(bb, st->Ist.Store.data);
+
+				mt_instrument_store(bb, addr, data);
+
+				if (addr !=  st->Ist.Store.addr || data !=  st->Ist.Store.data) {
+					st->Ist.Store.addr = addr;
+					st->Ist.Store.data = data;
 				}
+				break;
+			case Ist_Exit:
+				mt_instrument_expr(bb, &st->Ist.Exit.guard);
+				break;
 			default:
-				addStmtToIRBB(bb, st);
+				VG_(snprintf)(buf, sizeof(buf), "unhandled statement: %d", st->tag);
+				VG_(tool_panic)(buf);
 				break;
 		}
+
+		addStmtToIRBB(bb, st);
 	}
 
 	return bb;

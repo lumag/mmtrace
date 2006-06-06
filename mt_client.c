@@ -7,12 +7,17 @@
 #include "mmtrace.h"
 #include "mt_client_common.h"
 
-static const mt_mmap_trace_t store_trace = {
+static const mt_mmap_trace_t full_trace = {
 	.store_1 = &store_1,
 	.store_2 = &store_2,
 	.store_4 = &store_4,
 	.store_8 = &store_8,
 	.store_16 = &store_16,
+	.load_1 = &load_1,
+	.load_2 = &load_2,
+	.load_4 = &load_4,
+	.load_8 = &load_8,
+	.load_16 = &load_16,
 };
 
 const mt_mmap_trace_t *ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg) {
@@ -29,8 +34,7 @@ const mt_mmap_trace_t *ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg) 
 		return 0;
 	}*/
 
-//	return &store_trace;
-	return NULL;
+	return &full_trace;
 }
 
 void ML_(trace_flush)() {

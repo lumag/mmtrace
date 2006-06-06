@@ -6,6 +6,12 @@ struct mt_mmap_trace_s {
 	void (*store_4)(Char *name, ULong offset, UInt data);
 	void (*store_8)(Char *name, ULong offset, ULong data);
 	void (*store_16)(Char *name, ULong offset, U128 data);
+
+	void (*load_1)(Char *name, ULong offset, UChar data);
+	void (*load_2)(Char *name, ULong offset, UShort data);
+	void (*load_4)(Char *name, ULong offset, UInt data);
+	void (*load_8)(Char *name, ULong offset, ULong data);
+	void (*load_16)(Char *name, ULong offset, U128 data);
 };
 
 void ML_(trace_pre_ioctl)(Int fd, Int request, void* arg);
