@@ -154,6 +154,14 @@ IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout,
 							di = unsafeIRDirty_0_N (0, "mt_store_8",
 									&mt_store_8, mkIRExprVec_2(st->Ist.Store.addr, IRExpr_Tmp(temp)));
 							break;
+						case Ity_I128:
+							temp = newIRTemp(bb->tyenv, Ity_I64);
+							addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_128to64, st->Ist.Store.data)));
+							temp2 = newIRTemp(bb->tyenv, Ity_I64);
+							addStmtToIRBB(bb, IRStmt_Tmp(temp2,  IRExpr_Unop(Iop_128HIto64, st->Ist.Store.data)));
+							di = unsafeIRDirty_0_N (0, "mt_store_16",
+									&mt_store_16, mkIRExprVec_3(st->Ist.Store.addr, IRExpr_Tmp(temp), IRExpr_Tmp(temp2)));
+							break;
 						case Ity_V128:
 							temp = newIRTemp(bb->tyenv, Ity_I64);
 							addStmtToIRBB(bb, IRStmt_Tmp(temp,  IRExpr_Unop(Iop_V128to64, st->Ist.Store.data)));
