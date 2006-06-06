@@ -5,7 +5,7 @@ static int ioctl_dir;
 static int ioctl_type;
 static int ioctl_nr;
 static int ioctl_size;
-static UChar *ioctl_data;
+static void *ioctl_data;
 
 void ML_(trace_pre_ioctl)(Int fd, Int request, void* arg) {
 
@@ -13,7 +13,7 @@ void ML_(trace_pre_ioctl)(Int fd, Int request, void* arg) {
 	ioctl_type = _VKI_IOC_TYPE(request);
 	ioctl_nr = _VKI_IOC_NR(request);
 	ioctl_size = _VKI_IOC_SIZE(request);
-	ioctl_data = (UChar*) arg;
+	ioctl_data = arg;
 
 	if (ioctl_dir == _VKI_IOC_NONE
 	 || ioctl_type != NV_IOCTL_MAGIC) {
@@ -24,7 +24,7 @@ void ML_(trace_pre_ioctl)(Int fd, Int request, void* arg) {
 
 	this_ioctl_trace = True;
 	if ((ioctl_dir & _VKI_IOC_WRITE) && ioctl_size > 0) {
-		print_buffer("ioctl in:  ", ioctl_data, ioctl_size);
+		print_buffer_4("ioctl in:  ", ioctl_data, ioctl_size/4);
 	}
 }
 
@@ -36,7 +36,7 @@ void ML_(trace_post_ioctl)(SysRes res) {
 	this_ioctl_trace = False;
 	VG_(message)(Vg_DebugMsg, "ioctl returned %d", res.val);
 	if ((ioctl_dir & _VKI_IOC_READ) && ioctl_size > 0) {
-		print_buffer("ioctl out: ", ioctl_data, ioctl_size);
+		print_buffer_4("ioctl out: ", ioctl_data, ioctl_size/4);
 	}
 }
 
