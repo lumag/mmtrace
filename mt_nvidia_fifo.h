@@ -68,6 +68,7 @@ static void fifo_store_4(Char *name, ULong offset, UInt data) {
 				fifo_channels[fifo_channel].name,
 				fifo_channels[fifo_channel].type,
 				fifo_object_offset);
+		fifo_object_offset += 4;
 	}
 
 	VG_(message)(Vg_UserMsg, buf);
