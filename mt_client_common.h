@@ -4,11 +4,11 @@
 #define UNUSED __attribute__((unused))
 #endif
 
-static void UNUSED stub_1(Char *name, ULong offset, UChar data) {VG_(tool_panic)("store_1");}
-static void UNUSED stub_2(Char *name, ULong offset, UShort data) {VG_(tool_panic)("store_2");}
-static void UNUSED stub_4(Char *name, ULong offset, UInt data) {VG_(tool_panic)("store_4");}
-static void UNUSED stub_8(Char *name, ULong offset, ULong data) {VG_(tool_panic)("store_8");}
-static void UNUSED stub_16(Char *name, ULong offset, U128 data) {VG_(tool_panic)("store_16");}
+static void UNUSED stub_1(Char *name, ULong offset, UChar data) {VG_(tool_panic)("memaccess_1");}
+static void UNUSED stub_2(Char *name, ULong offset, UShort data) {VG_(tool_panic)("memaccess_2");}
+static void UNUSED stub_4(Char *name, ULong offset, UInt data) {VG_(tool_panic)("memaccess_4");}
+static void UNUSED stub_8(Char *name, ULong offset, ULong data) {VG_(tool_panic)("memaccess_8");}
+static void UNUSED stub_16(Char *name, ULong offset, U128 data) {VG_(tool_panic)("memaccess_16");}
 
 static void UNUSED store_1(Char *name, ULong offset, UChar data) {
 	VG_(message)(Vg_UserMsg, "store: [%s][%08llx] = %02x", name, offset, data);

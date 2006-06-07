@@ -2,6 +2,7 @@ TODO:
 
 main binary:
 * mt_instrument_load mostly duplicates mt_instrument_store! Make common code.
+* handle memory effects in dirty calls.
 * handle read, write syscalls
 
 dummy client:

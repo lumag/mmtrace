@@ -66,4 +66,6 @@ static void fifo_store_16(Char *name, ULong offset, U128 data) {
 		fifo_store_4(name, offset + i * 4, data[i]);
 }
 
-
+static void fifo_load_4(Char *name, ULong offset, UInt data) {
+	VG_(message)(Vg_UserMsg, "FIFO load: [%08llx] = %08x", offset, data);
+}

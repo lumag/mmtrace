@@ -53,6 +53,12 @@ static const mt_mmap_trace_t store_trace = {
 	.store_4 = &smart_store_4,
 	.store_8 = &store_8,
 	.store_16 = &store_16,
+
+	.load_1 = &load_1,
+	.load_2 = &load_2,
+	.load_4 = &load_4,
+	.load_8 = &load_8,
+	.load_16 = &load_16,
 };
 
 
@@ -62,6 +68,12 @@ static const mt_mmap_trace_t stub_trace = {
 	.store_4 = &stub_4,
 	.store_8 = &stub_8,
 	.store_16 = &stub_16,
+
+	.load_1 = &stub_1,
+	.load_2 = &stub_2,
+	.load_4 = &stub_4,
+	.load_8 = &stub_8,
+	.load_16 = &stub_16,
 };
 
 
@@ -71,6 +83,12 @@ static const mt_mmap_trace_t fifo_trace = {
 	.store_4 = &fifo_store_4,
 	.store_8 = &stub_8,
 	.store_16 = &fifo_store_16,
+
+	.load_1 = &stub_1,
+	.load_2 = &stub_2,
+	.load_4 = &fifo_load_4,
+	.load_8 = &stub_8,
+	.load_16 = &stub_16,
 };
 
 #define FIFO_SIZE1 0x102000 

@@ -302,7 +302,7 @@ static void mt_instrument_expr(IRBB *bb, IRExpr **expr) {
 			break;
 		case Iex_CCall:
 			for (args = (*expr)->Iex.CCall.args; *args != NULL; args++) {
-				mt_instrument_expr(bb, *&args);
+				mt_instrument_expr(bb, args);
 			}
 			break;
 		case Iex_Mux0X:
@@ -313,6 +313,7 @@ static void mt_instrument_expr(IRBB *bb, IRExpr **expr) {
 		default:
 			VG_(snprintf)(buf, sizeof(buf), "unhandled expression: %d", (*expr)->tag);
 			VG_(tool_panic)(buf);
+			break;
 	}
 }
 static
@@ -323,6 +324,7 @@ IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout,
 	IRBB *bb;
 	int i;
 	Char buf[128];
+	IRExpr **args;
 
 	if (gWordTy != hWordTy) {
 		/* We don't currently support this case. */
@@ -373,10 +375,22 @@ IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout,
 					st->Ist.Store.data = data;
 				}
 				break;
+			case Ist_Dirty:
+				mt_instrument_expr(bb, &st->Ist.Dirty.details->guard);
+				for (args = st->Ist.Dirty.details->args; *args != NULL; args++) {
+					mt_instrument_expr(bb, args);
+				}
+
+				if (st->Ist.Dirty.details->mFx != Ifx_None) {
+					ppIRDirty(st->Ist.Dirty.details);
+					VG_(message)(Vg_UserMsg, "memory effects not supported");
+				}
+				break;
 			case Ist_Exit:
 				mt_instrument_expr(bb, &st->Ist.Exit.guard);
 				break;
 			default:
+				ppIRStmt(st);
 				VG_(snprintf)(buf, sizeof(buf), "unhandled statement: %d", st->tag);
 				VG_(tool_panic)(buf);
 				break;
