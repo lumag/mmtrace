@@ -8,7 +8,7 @@ static fifo_descriptor fifo_channels[8];
 static ULong fifo_expected = 0;
 static int fifo_nops = 0;
 
-static int fifo_cmdstart = 0;
+static ULong fifo_cmdstart = 0;
 static int fifo_cmdlen = 0;
 
 static int fifo_channel = 0;
