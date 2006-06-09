@@ -30,22 +30,43 @@ UInt ML_(find_object_type)(UInt name, UInt chid) {
 		hash ^= (temp & ((1 << ht_bits) - 1));
 		temp >>= ht_bits;
 	}
-	hash ^= chid << (ht_bits - 4);
+//	hash ^= chid << (ht_bits - 4);
 	hash <<= 3;
 
-	VG_(message)(Vg_UserMsg, "Hash is %08x", hash);
+	VG_(message)(Vg_UserMsg, "Object hash is %08x", hash);
 
-	if (ML_(all_regs)[(NV_PRAMIN + ht_base + hash) / 4] != name) {
+	int chan;
+	int found = 0;
+
+	// FIXME: I really dunno the number of channels
+	for (chan = 0; chan < 32; chan++) {
+		temp = hash ^ (chan << (ht_bits - 4 + 3));
+		if (ML_(all_regs)[(NV_PRAMIN + ht_base + temp) / 4] == name) {
+			VG_(message)(Vg_UserMsg, "Channel is %d", chan);
+			hash = temp;
+			found = 1;
+			break;
+		}
+	}
+
+	if (found == 0) {
 		VG_(message)(Vg_UserMsg, "Object not found at expected place. bruteforcing the table. PLEASE REPORT!");
 		// brute force hash!
 		for(i=0x00700000 + ht_base ;i<0x00700000+ht_base + ht_size; i+=4) {
 			if (ML_(all_regs)[i/4] == name) {
 				hash = i - 0x00700000 - ht_base;
-				VG_(message)(Vg_UserMsg, "Object found at %08x", hash);
+				found = 1;
 				break;
 			}
 		}
 	}
+
+	if (found == 0) {
+		VG_(message)(Vg_UserMsg, "Object not found in hash table! REPORT ASAP!!!!");
+		return 0;
+	}
+	
+	VG_(message)(Vg_UserMsg, "Object found at %08x", hash);
 
 	context = ML_(all_regs)[(NV_PRAMIN + ht_base + hash + 4) / 4];
 	VG_(message)(Vg_UserMsg, "Context is %08x", context);
@@ -58,7 +79,7 @@ UInt ML_(find_object_type)(UInt name, UInt chid) {
 
 		type = (name & 0xff00) >> 8;
 	} else {
-		type = ML_(all_regs)[(NV_PRAMIN + (instanceMem << 4) + 0 * 4)/4] & 0xffff;
+		type = ML_(all_regs)[(NV_PRAMIN + (instanceMem << 4) + 0 * 4)/4] & 0xff;
 	}
 
 	for (i = 0; i < 4; i++) {
