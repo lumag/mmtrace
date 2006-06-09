@@ -1,3 +1,6 @@
+#ifndef MMTRACE_H
+#define MMTRACE_H
+
 typedef struct mt_mmap_trace_s mt_mmap_trace_t;
 
 struct mt_mmap_trace_s {
@@ -14,10 +17,16 @@ struct mt_mmap_trace_s {
 	void (*load_16)(Char *name, ULong offset, U128 data);
 };
 
-void ML_(trace_pre_ioctl)(Int fd, Int request, void* arg);
+void ML_(trace_pre_ioctl)(int fd, Int request, void* arg);
 void ML_(trace_post_ioctl)(SysRes res);
+
+void ML_(trace_pre_open)(HChar *name, UInt flags);
+void ML_(trace_post_open)(SysRes res);
+void ML_(trace_pre_close)(int fd);
+void ML_(trace_post_close)(SysRes res);
 
 
 const mt_mmap_trace_t* ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg);
 void ML_(trace_flush)();
 
+#endif

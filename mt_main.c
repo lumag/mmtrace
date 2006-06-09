@@ -420,13 +420,21 @@ static void mt_pre_syscall(ThreadId tid, UInt syscallno, SyscallArgs* args) {
 //	VG_(message)(Vg_DebugMsg, "syscall: %d, %d, %d ...", syscallno, args->arg1, args->arg2);
 	if (syscallno == SYS_ioctl) {
 		ML_(trace_pre_ioctl)(args->arg1, args->arg2, (void*)args->arg3);
+	} else if (syscallno == SYS_open) {
+		ML_(trace_pre_open)((HChar*)args->arg1, args->arg2);
+	} else if (syscallno == SYS_close) {
+		ML_(trace_pre_close)(args->arg1);
 	}
 }
 
 static void mt_post_syscall(ThreadId tid, UInt syscallno, SysRes res) {
 	if (syscallno == SYS_ioctl) {
 		ML_(trace_post_ioctl)(res);
-	}
+	} else if (syscallno == SYS_open) {
+		ML_(trace_post_open)(res);
+	} else if (syscallno == SYS_close) {
+		ML_(trace_post_close)(res);
+	} 
 }
 
 static

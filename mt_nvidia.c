@@ -6,13 +6,34 @@
 
 #include "mmtrace.h"
 #include "mt_client_common.h"
+#include "mt_nvidia.h"
 
-#include "mt_nvidia_fifo.h"
-#include "mt_nvidia_ioctl.h"
+// from pub_core_aspacemgr.h
+extern SysRes VG_(am_mmap_file_float_valgrind)
+   ( SizeT length, UInt prot, Int fd, Off64T offset );
+extern SysRes VG_(am_munmap_valgrind)( Addr start, SizeT length );
+// end
 
 static Char* zero_fname = "";
 static ULong zero_start = 0;
 static ULong zero_expect = 0;
+
+nvidia_info ML_(nvinfo);
+int ML_(nvcard) = -1;
+UInt* ML_(all_regs) = NULL;
+
+void ML_(device_selected)(int fd) {
+	VG_(message)(Vg_UserMsg, "Selected card %d", ML_(nvcard));
+	SysRes res = VG_(am_mmap_file_float_valgrind)(
+			ML_(nvinfo).devices[ML_(nvcard)].reg_size,
+			VKI_PROT_READ | VKI_PROT_WRITE,
+			fd,
+			ML_(nvinfo).devices[ML_(nvcard)].reg_addr);
+	if (res.isError) {
+		VG_(tool_panic)("Failed mmapping device registers");
+	}
+	ML_(all_regs) = (UInt*)res.val;
+}
 
 static void smart_store_4_flush() {
 	if (zero_start != zero_expect) {
@@ -45,7 +66,6 @@ static void smart_store_4(Char *name, ULong offset, UInt data) {
 
 	store_4(name, offset, data);
 }
-
 
 static const mt_mmap_trace_t store_trace = {
 	.store_1 = &store_1,
@@ -80,13 +100,13 @@ static const mt_mmap_trace_t stub_trace = {
 static const mt_mmap_trace_t fifo_trace = {
 	.store_1 = &stub_1,
 	.store_2 = &stub_2,
-	.store_4 = &fifo_store_4,
+	.store_4 = &ML_(fifo_store_4),
 	.store_8 = &stub_8,
-	.store_16 = &fifo_store_16,
+	.store_16 = &ML_(fifo_store_16),
 
 	.load_1 = &stub_1,
 	.load_2 = &stub_2,
-	.load_4 = &fifo_load_4,
+	.load_4 = &ML_(fifo_load_4),
 	.load_8 = &stub_8,
 	.load_16 = &stub_16,
 };
@@ -119,6 +139,6 @@ const mt_mmap_trace_t *ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg) 
 }
 
 void ML_(trace_flush)() {
-	fifo_flush();
+	ML_(fifo_flush)();
 	smart_store_4_flush();
 }

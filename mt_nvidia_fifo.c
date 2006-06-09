@@ -1,3 +1,12 @@
+#include "pub_tool_basics.h"
+#include "pub_tool_aspacemgr.h"
+#include "pub_tool_libcassert.h"
+#include "pub_tool_libcprint.h"
+
+#include "mmtrace.h"
+#include "mt_client_common.h"
+#include "mt_nvidia.h"
+
 typedef struct {
 	UInt name;
 	UInt type;
@@ -14,7 +23,7 @@ static int fifo_cmdlen = 0;
 static int fifo_channel = 0;
 static int fifo_object_offset = 0;
 
-static void fifo_flush() {
+void ML_(fifo_flush)() {
 	if (fifo_nops != 0) {
 		if (fifo_nops < 5) {
 			ULong o = fifo_expected - fifo_nops*4;
@@ -29,7 +38,7 @@ static void fifo_flush() {
 	}
 }
 
-static void fifo_store_4(Char *name, ULong offset, UInt data) {
+void ML_(fifo_store_4)(Char *name, ULong offset, UInt data) {
 	static char buf[BUFSIZ];
 	int pos = 0;
 
@@ -45,7 +54,7 @@ static void fifo_store_4(Char *name, ULong offset, UInt data) {
 
 		if (data == 0) {
 			if (offset != fifo_expected) {
-				fifo_flush();
+				ML_(fifo_flush)();
 			}
 
 			fifo_nops ++;
@@ -61,8 +70,7 @@ static void fifo_store_4(Char *name, ULong offset, UInt data) {
 	} else {
 		if (fifo_object_offset == 0) {
 			fifo_channels[fifo_channel].name = data;
-			// FIXME!
-			fifo_channels[fifo_channel].type = (data & 0x0000ff00) >> 8;
+			fifo_channels[fifo_channel].type = ML_(find_object_type)(data, 2);
 		}
 		pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, "  object: %08x type=%02x  offset=%04x",
 				fifo_channels[fifo_channel].name,
@@ -74,13 +82,13 @@ static void fifo_store_4(Char *name, ULong offset, UInt data) {
 	VG_(message)(Vg_UserMsg, buf);
 }
 
-static void fifo_store_16(Char *name, ULong offset, U128 data) {
+void ML_(fifo_store_16)(Char *name, ULong offset, U128 data) {
 	VG_(message)(Vg_DebugMsg, "FIFO: emulating fast 16-byte write by 4 typical ones");
 	int i;
 	for (i = 0; i < 4; i++)
-		fifo_store_4(name, offset + i * 4, data[i]);
+		ML_(fifo_store_4)(name, offset + i * 4, data[i]);
 }
 
-static void fifo_load_4(Char *name, ULong offset, UInt data) {
+void ML_(fifo_load_4)(Char *name, ULong offset, UInt data) {
 	VG_(message)(Vg_UserMsg, "FIFO load: [%08llx] = %08x", offset, data);
 }
