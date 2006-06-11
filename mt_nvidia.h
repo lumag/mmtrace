@@ -26,6 +26,7 @@ extern int ML_(nvarch);
 extern UInt* ML_(all_regs);
 
 UInt ML_(find_object_type)(UInt name, UInt chid);
+char *ML_(format_load)(int object_type, int offset, unsigned int value);
 
 void ML_(device_selected)(int fd);
 

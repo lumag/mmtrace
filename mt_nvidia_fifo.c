@@ -1,6 +1,7 @@
 #include "pub_tool_basics.h"
 #include "pub_tool_aspacemgr.h"
 #include "pub_tool_libcassert.h"
+#include "pub_tool_libcbase.h"
 #include "pub_tool_libcprint.h"
 
 #include "mmtrace.h"
@@ -68,15 +69,20 @@ void ML_(fifo_store_4)(Char *name, ULong offset, UInt data) {
 			fifo_expected = offset + 4;
 		}
 	} else {
-		if (fifo_object_offset == 0) {
+		int cur_offset = fifo_object_offset + offset - fifo_cmdstart - 4;
+		if (cur_offset == 0) {
 			fifo_channels[fifo_channel].name = data;
 			fifo_channels[fifo_channel].type = ML_(find_object_type)(data, 2);
 		}
-		pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, "  object: %08x type=%02x  offset=%04x",
-				fifo_channels[fifo_channel].name,
-				fifo_channels[fifo_channel].type,
-				fifo_object_offset);
-		fifo_object_offset += 4;
+//		pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, "  object: %08x type=%02x  offset=%04x",
+//				fifo_channels[fifo_channel].name,
+//				fifo_channels[fifo_channel].type,
+//				cur_offset);
+
+		pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, " %08x: ",
+				fifo_channels[fifo_channel].name);
+		VG_(strncpy)(buf+pos, ML_(format_load)(fifo_channels[fifo_channel].type, cur_offset, data), BUFSIZ - pos);
+		pos += VG_(strlen)(buf+pos);
 	}
 
 	VG_(message)(Vg_UserMsg, buf);

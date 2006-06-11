@@ -1,11 +1,144 @@
 #include "pub_tool_basics.h"
 #include "pub_tool_libcassert.h"
+#include "pub_tool_libcbase.h"
 #include "pub_tool_libcprint.h"
 
 #include "mt_client_common.h"
 #include "mt_nvidia.h"
-#include "mt_nvidia_regs.h"
+#include "nvidia/nv_regs.h"
+#include "nvidia/nv_objects.h"
 
+static const char* user_format = "%08x";
+
+static const char* print_format(unsigned int value, void*format) {
+	static char buf[128];
+	VG_(snprintf)(buf, sizeof(buf), format?format:user_format, value);
+	return buf;
+}
+
+typedef struct {
+	unsigned int id;
+	const char* name;
+} data_store;
+
+typedef const char* (*PrintFunc)(unsigned int value, void*data);
+
+typedef struct {
+	int lowbit;
+	int highbit;
+
+	PrintFunc func;
+	void *data;
+} data_print_store;
+
+typedef struct {
+	unsigned int offset;
+	const char* name;
+
+	// max 32 bits, so max 32 subfields
+	data_print_store data[32];
+} object_field_store;
+
+typedef struct {
+	unsigned int id;
+	const char *name;
+
+	// You can freely increase this array size, if it's full
+	object_field_store fields[100];
+} object_store;
+
+#define __(a)	a, # a
+#define PRINT_BITFIELD(bf, func, data)	{0?bf, 1?bf, func, data}
+#define PRINT_FP32	{0, 31, &print_format, "%f"}
+#define PRINT_X32	{0, 31, &print_format, "0x%x"}
+
+#define PRINT_USER	{0, 31, &print_format, NULL}
+
+// temporary
+#define PRINT_OBJECT	{0, 31, &print_format, "object %08x"}
+
+static const object_store nv_objects[0x100] = {
+	[NV04_DX5_TEXTURED_TRIANGLE] = {__(NV04_DX5_TEXTURED_TRIANGLE),{
+		{__(NV04_DX5_TEXTURED_TRIANGLE_NOTIFY),		{PRINT_OBJECT,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_DMA_1),		{PRINT_OBJECT,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_DMA_2),		{PRINT_OBJECT,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_SURFACE),	{PRINT_OBJECT,	{}} },
+
+		{__(NV04_DX5_TEXTURED_TRIANGLE_COLOR_KEY),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_OFFSET),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_FORMAT),	{PRINT_USER,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_FILTER),	{PRINT_USER,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_BLEND),		{PRINT_USER,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_CONTROL),	{PRINT_USER,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_FOG_COLOR),	{PRINT_X32,	{}} },
+
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SX(0)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SY(0)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SZ(0)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_INV_W(0)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_COLOR(0)),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_SPECULAR(0)),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_S(0)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_T(0)),	{PRINT_FP32,	{}} },
+
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SX(1)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SY(1)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SZ(1)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_INV_W(1)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_COLOR(1)),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_SPECULAR(1)),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_S(1)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_T(1)),	{PRINT_FP32,	{}} },
+
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SX(2)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SY(2)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SZ(2)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_INV_W(2)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_COLOR(2)),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_SPECULAR(2)),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_S(2)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_T(2)),	{PRINT_FP32,	{}} },
+
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SX(3)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SY(3)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SZ(3)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_INV_W(3)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_COLOR(3)),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_SPECULAR(3)),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_S(3)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_T(3)),	{PRINT_FP32,	{}} },
+
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SX(4)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SY(4)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SZ(4)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_INV_W(4)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_COLOR(4)),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_SPECULAR(4)),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_S(4)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_T(4)),	{PRINT_FP32,	{}} },
+
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SX(5)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SY(5)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TLVERTEX_SZ(5)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_INV_W(5)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_COLOR(5)),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_SPECULAR(5)),	{PRINT_X32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_S(5)),	{PRINT_FP32,	{}} },
+		{__(NV04_DX5_TEXTURED_TRIANGLE_TEXTURE_T(5)),	{PRINT_FP32,	{}} },
+
+		{__(NV04_DX5_TEXTURED_TRIANGLE_DRAW), {
+				PRINT_BITFIELD(NV04_DX5_TEXTURED_TRIANGLE_DRAW_V0, print_format, "%d"),
+				PRINT_BITFIELD(NV04_DX5_TEXTURED_TRIANGLE_DRAW_V1, print_format, "%d"),
+				PRINT_BITFIELD(NV04_DX5_TEXTURED_TRIANGLE_DRAW_V2, print_format, "%d"),
+				PRINT_BITFIELD(NV04_DX5_TEXTURED_TRIANGLE_DRAW_V3, print_format, "%d"),
+				PRINT_BITFIELD(NV04_DX5_TEXTURED_TRIANGLE_DRAW_V4, print_format, "%d"),
+				PRINT_BITFIELD(NV04_DX5_TEXTURED_TRIANGLE_DRAW_V5, print_format, "%d"),
+									      	{}} },
+		{}},
+	},
+};
+
+// XXX
 // Warning! this will work only for >= NV04!
 UInt ML_(find_object_type)(UInt name, UInt chid) {
 	UInt htval = ML_(all_regs)[NV_PFIFO_RAMHT/4];
@@ -87,4 +220,64 @@ UInt ML_(find_object_type)(UInt name, UInt chid) {
 	}
 
 	return type;
+}
+
+char *ML_(format_load)(int object_type, int offset, unsigned int value) {
+	static char buf[BUFSIZ];
+	int pos = 0;
+	const object_store *obj;
+	const object_field_store *field;
+
+	tl_assert(object_type < sizeof(nv_objects)/sizeof(object_store));
+
+	obj = &nv_objects[object_type];
+
+	field = &obj->fields[0];
+
+	while (field->name != NULL) {
+		if (field->offset == offset) {
+			break;
+		}
+
+		field ++;
+	}
+
+	if (field->name == NULL) {
+		if (obj->name == NULL) {
+			pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, "NvType%02x", object_type);
+		} else {
+			VG_(strncpy)(buf+pos, obj->name, BUFSIZ-pos);
+			pos += VG_(strlen)(buf+pos);
+		}
+
+		pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, "[0x%04x/4] = ", offset);
+	} else {
+		VG_(strncpy)(buf+pos, field->name, BUFSIZ-pos);
+		pos += VG_(strlen)(buf+pos);
+
+		VG_(strncpy)(buf+pos, " = ", BUFSIZ-pos);
+		pos += 3;
+	}
+
+	if (field->data[0].func == NULL) {
+		pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, user_format, value);
+	} else {
+		int i;
+
+		for (i = 0; field->data[i].func != NULL; i++) {
+			if (i != 0) {
+				VG_(strncpy)(buf+pos, " | ", 3);
+				pos += 3;
+			}
+			const char *str = field->data[i].func(
+					(value >> field->data[i].lowbit) & (0xFFFFFFFF >> (31-field->data[i].highbit + field->data[i].lowbit)),
+					field->data[i].data);
+
+			VG_(strncpy)(buf+pos, str, BUFSIZ-pos);
+			pos += VG_(strlen)(str);
+		}
+	}
+
+
+	return buf;
 }
