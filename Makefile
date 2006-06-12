@@ -37,5 +37,8 @@ clean:
 	-rm -f $(OBJECTS) mmtrace
 
 .PHONY: .depend
-.depend:
+.depend: $(OBJECTS:.o=.c)
 	-$(CC) $(CFLAGS) -M -MP $(OBJECTS:.o=.c) > .depend
+
+mt_nvidia_objects.c:
+	[ -r $@ ] || ln -s nvidia/objects.c $@
