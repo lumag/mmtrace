@@ -1,14 +1,9 @@
-#include "pub_tool_basics.h"
-#include "pub_tool_aspacemgr.h"
-#include "pub_tool_libcassert.h"
-#include "pub_tool_libcbase.h"
-#include "pub_tool_libcprint.h"
+#include "mmtrace.h"
 #include "pub_tool_mallocfree.h"
 #include "pub_tool_tooliface.h"
 
 #include <sys/syscall.h>
 
-#include "mmtrace.h"
 
 #define ADDR_SIZE	(sizeof(Addr)*8 - VKI_PAGE_SHIFT)
 #define ADDR_FIRST_SHIFT	(ADDR_SIZE/2)
@@ -191,7 +186,7 @@ static void mt_instrument_load(IRBB* bb, IRExpr* addr, IRExpr *data) {
 					&mt_load_16, mkIRExprVec_3(addr, IRExpr_Tmp(temp), IRExpr_Tmp(temp2)));
 			break;
 		default:
-			VG_(snprintf)(buf, sizeof(buf), "unhandled type: %x", type);
+			snprintf(buf, sizeof(buf), "unhandled type: %x", type);
 			VG_(tool_panic)(buf);
 			break;
 	}
@@ -254,7 +249,7 @@ static void mt_instrument_store(IRBB* bb, IRExpr* addr, IRExpr* data) {
 					&mt_store_16, mkIRExprVec_3(addr, IRExpr_Tmp(temp), IRExpr_Tmp(temp2)));
 			break;
 		default:
-			VG_(snprintf)(buf, sizeof(buf), "unhandled type: %x", type);
+			snprintf(buf, sizeof(buf), "unhandled type: %x", type);
 			VG_(tool_panic)(buf);
 			break;
 	}
@@ -311,7 +306,7 @@ static void mt_instrument_expr(IRBB *bb, IRExpr **expr) {
 			mt_instrument_expr(bb, &(*expr)->Iex.Mux0X.exprX);
 			break;
 		default:
-			VG_(snprintf)(buf, sizeof(buf), "unhandled expression: %d", (*expr)->tag);
+			snprintf(buf, sizeof(buf), "unhandled expression: %d", (*expr)->tag);
 			VG_(tool_panic)(buf);
 			break;
 	}
@@ -376,22 +371,21 @@ IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout,
 				}
 				break;
 			case Ist_Dirty:
+				VG_(printf)("Dirty statememtn: ");
+				ppIRDirty(st->Ist.Dirty.details);
+				VG_(printf)("\n");
 				mt_instrument_expr(bb, &st->Ist.Dirty.details->guard);
 				for (args = st->Ist.Dirty.details->args; *args != NULL; args++) {
 					mt_instrument_expr(bb, args);
 				}
 
-				if (st->Ist.Dirty.details->mFx != Ifx_None) {
-					ppIRDirty(st->Ist.Dirty.details);
-					VG_(message)(Vg_UserMsg, "memory effects not supported");
-				}
 				break;
 			case Ist_Exit:
 				mt_instrument_expr(bb, &st->Ist.Exit.guard);
 				break;
 			default:
 				ppIRStmt(st);
-				VG_(snprintf)(buf, sizeof(buf), "unhandled statement: %d", st->tag);
+				snprintf(buf, sizeof(buf), "unhandled statement: %d", st->tag);
 				VG_(tool_panic)(buf);
 				break;
 		}

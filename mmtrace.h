@@ -1,6 +1,8 @@
 #ifndef MMTRACE_H
 #define MMTRACE_H
 
+#include "mt_valgrind.h"
+
 typedef struct mt_mmap_trace_s mt_mmap_trace_t;
 
 struct mt_mmap_trace_s {

@@ -47,17 +47,17 @@ static UNUSED void print_buffer(HChar* prefix, UChar *data, Int size) {
 	int pos = 0;
 	int i;
 
-	pos = VG_(snprintf)(buf+pos, BUFSIZ-pos, prefix);
+	pos = snprintf(buf+pos, BUFSIZ-pos, prefix);
 	for (i = 0; i < size; i++) {
 		if (i % 16 == 8 || i % 8 == 4) {
 			buf[(pos++)] = ' ';
 			buf[(pos++)] = '-';
 		}
-		pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, " %02x", (UInt)data[i]);
+		pos += snprintf(buf+pos, BUFSIZ-pos, " %02x", (UInt)data[i]);
 
 		if ((i+1)% 16 == 0) {
 			VG_(message)(Vg_UserMsg, buf);
-			pos = VG_(snprintf)(buf+pos, BUFSIZ-pos, prefix);
+			pos = snprintf(buf+pos, BUFSIZ-pos, prefix);
 		}
 	}
 	
@@ -71,16 +71,16 @@ static UNUSED void print_buffer_4(HChar* prefix, UInt *data, Int size) {
 	int pos = 0;
 	int i;
 
-	pos = VG_(snprintf)(buf+pos, BUFSIZ-pos, prefix);
+	pos = snprintf(buf+pos, BUFSIZ-pos, prefix);
 	for (i = 0; i < size; i++) {
 		if (i % 4 == 2 || i % 2 == 1) {
 			buf[(pos++)] = ' ';
 		}
-		pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, " %08x", data[i]);
+		pos += snprintf(buf+pos, BUFSIZ-pos, " %08x", data[i]);
 
 		if ((i+1)% 4 == 0) {
 			VG_(message)(Vg_UserMsg, buf);
-			pos = VG_(snprintf)(buf+pos, BUFSIZ-pos, prefix);
+			pos = snprintf(buf+pos, BUFSIZ-pos, prefix);
 		}
 	}
 	

@@ -1,3 +1,0 @@
-#define NV_PRAMIN					0x00700000
-
-#define NV_PFIFO_RAMHT					0x00002210

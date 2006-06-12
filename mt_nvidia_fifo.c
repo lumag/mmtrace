@@ -1,12 +1,7 @@
-#include "pub_tool_basics.h"
-#include "pub_tool_aspacemgr.h"
-#include "pub_tool_libcassert.h"
-#include "pub_tool_libcbase.h"
-#include "pub_tool_libcprint.h"
-
 #include "mmtrace.h"
 #include "mt_client_common.h"
 #include "mt_nvidia.h"
+#include "nvidia/objects.h"
 
 typedef struct {
 	UInt name;
@@ -43,7 +38,7 @@ void ML_(fifo_store_4)(Char *name, ULong offset, UInt data) {
 	static char buf[BUFSIZ];
 	int pos = 0;
 
-	pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, "FIFO: [%08llx] = %08x", offset, data);
+	pos += snprintf(buf+pos, BUFSIZ-pos, "FIFO: [%08llx] = %08x", offset, data);
 
 	if (fifo_cmdstart + fifo_cmdlen*4 < offset || offset <= fifo_cmdstart) {
 
@@ -64,7 +59,7 @@ void ML_(fifo_store_4)(Char *name, ULong offset, UInt data) {
 		} else {
 			ML_(trace_flush)();
 
-			pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, "  {size: 0x%-3x   channel: 0x%-1x}", fifo_cmdlen, fifo_channel);
+			pos += snprintf(buf+pos, BUFSIZ-pos, "  {size: 0x%-3x   channel: 0x%-1x}", fifo_cmdlen, fifo_channel);
 
 			fifo_expected = offset + 4;
 		}
@@ -72,17 +67,17 @@ void ML_(fifo_store_4)(Char *name, ULong offset, UInt data) {
 		int cur_offset = fifo_object_offset + offset - fifo_cmdstart - 4;
 		if (cur_offset == 0) {
 			fifo_channels[fifo_channel].name = data;
-			fifo_channels[fifo_channel].type = ML_(find_object_type)(data, 2);
+			fifo_channels[fifo_channel].type = find_object_type(data);
 		}
-//		pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, "  object: %08x type=%02x  offset=%04x",
+//		pos += snprintf(buf+pos, BUFSIZ-pos, "  object: %08x type=%02x  offset=%04x",
 //				fifo_channels[fifo_channel].name,
 //				fifo_channels[fifo_channel].type,
 //				cur_offset);
 
-		pos += VG_(snprintf)(buf+pos, BUFSIZ-pos, " %08x: ",
+		pos += snprintf(buf+pos, BUFSIZ-pos, " %08x: ",
 				fifo_channels[fifo_channel].name);
-		VG_(strncpy)(buf+pos, ML_(format_load)(fifo_channels[fifo_channel].type, cur_offset, data), BUFSIZ - pos);
-		pos += VG_(strlen)(buf+pos);
+		strncpy(buf+pos, format_load(fifo_channels[fifo_channel].type, cur_offset, data), BUFSIZ - pos);
+		pos += strlen(buf+pos);
 	}
 
 	VG_(message)(Vg_UserMsg, buf);

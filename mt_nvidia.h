@@ -23,10 +23,18 @@ typedef union {
 extern nvidia_info ML_(nvinfo);
 extern int ML_(nvcard);
 extern int ML_(nvarch);
-extern UInt* ML_(all_regs);
 
-UInt ML_(find_object_type)(UInt name, UInt chid);
-char *ML_(format_load)(int object_type, int offset, unsigned int value);
+extern UInt* ML_(all_regs);
+#define all_regs ML_(all_regs)
+
+extern UInt ML_(card_family);
+#define card_family ML_(card_family)
+
+#define find_object_type ML_(find_object_type)
+#define format_load ML_(format_load)
+#define print_format ML_(print_format)
+#define print_float ML_(print_float)
+#define user_data_print ML_(user_data_print)
 
 void ML_(device_selected)(int fd);
 
@@ -34,5 +42,10 @@ void ML_(fifo_flush)();
 void ML_(fifo_store_4)(Char *name, ULong offset, UInt data);
 void ML_(fifo_store_16)(Char *name, ULong offset, U128 data);
 void ML_(fifo_load_4)(Char *name, ULong offset, UInt data);
+
+#ifndef BUFSIZ
+#define BUFSIZ 1024
+#endif
+
 
 #endif

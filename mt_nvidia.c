@@ -1,12 +1,8 @@
-#include "pub_tool_basics.h"
-#include "pub_tool_aspacemgr.h"
-#include "pub_tool_libcassert.h"
-#include "pub_tool_libcbase.h"
-#include "pub_tool_libcprint.h"
-
 #include "mmtrace.h"
 #include "mt_client_common.h"
 #include "mt_nvidia.h"
+#include "nvidia/nv_hw.h"
+#include "nvidia/objects.h"
 
 // from pub_core_aspacemgr.h
 extern SysRes VG_(am_mmap_file_float_valgrind)
@@ -20,10 +16,95 @@ static ULong zero_expect = 0;
 
 nvidia_info ML_(nvinfo);
 int ML_(nvcard) = -1;
-UInt* ML_(all_regs) = NULL;
+UInt* all_regs = NULL;
+UInt card_family = 0;
+
+data_print_store user_data_print[] = {
+	{0, 31, print_format, "0x%08x"},
+	{}
+};
 
 void ML_(device_selected)(int fd) {
 	VG_(message)(Vg_UserMsg, "Selected card %d", ML_(nvcard));
+	switch (ML_(nvinfo).devices[ML_(nvcard)].pid & 0x0FF0) {
+		case 0x0020: /* TNT1/TNT2 */
+		case 0x00A0: /* Aladdin TNT2 */
+			card_family=NV04;
+			break;
+		case 0x0100: /* GeForce 256 */
+		case 0x0110: /* GeForce2 MX */
+		case 0x01A0: /* nForce */
+			card_family=NV10;
+			break;
+		case 0x0150: /* GeForce2 */
+		case 0x0170: /* GeForce4 MX */
+		case 0x0180: /* GeForce4 MX (8x AGP) */
+		case 0x01F0: /* nForce2 */
+			card_family=NV15;
+			break;
+		case 0x0200: /* GeForce3 */
+		case 0x0250: /* GeForce4 Ti */
+		case 0x0280: /* GeForce4 Ti (8x AGP) */
+			card_family=NV20;
+			break;
+		case 0x0300: /* GeForceFX 5800 */
+		case 0x0310: /* GeForceFX 5600 */
+		case 0x0320: /* GeForceFX 5200 */
+		case 0x0330: /* GeForceFX 5900 */
+		case 0x0340: /* GeForceFX 5700 */
+			card_family=NV30;
+			break;
+		case 0x0040: /* GeForce 6800 */
+		case 0x00C0: /* GeForce 6800 */
+		case 0x0120: /* GeForce 6800 */
+		case 0x0210: /* GeForce 6800 */
+		case 0x0140: /* GeForce 6600 */
+		case 0x0160: /* GeForce 6200 */
+		case 0x0220: /* GeForce 6200 */
+		case 0x0240: /* GeForce 6100 */
+			card_family=NV40;
+			break;
+		case 0x01D0: /* GeForce 7200, 7300, 7400 */
+		case 0x0090: /* GeForce 7800 */
+		case 0x0290: /* GeForce 7900 */
+		case 0x02E0: /* GeForce 7600 */
+		case 0x0390: /* GeForce 7600 */
+			card_family=G70;
+			break;
+		case 0x00F0: /* misc PCI-E cards */
+			switch(ML_(nvinfo).devices[ML_(nvcard)].pid & 0xFF)
+			{
+				case 0xFF: /* Geforce 4300 */
+					card_family=NV15;
+					break;
+				case 0xFA: /* GeForceFX 5750 */
+				case 0xFB: /* GeForceFX 5900 */
+				case 0xFC: /* QuadroFX 330/GeForceFX 5300 */
+				case 0xFD: /* QuadroFX 330/NVS 280 */
+				case 0xFE: /* QuadroFX 1300 */
+					card_family=NV30;
+					break;
+				case 0xF0: /* GeForce 6800 */
+				case 0xF1: /* GeForce 6600 */
+				case 0xF2: /* GeForce 6600 */
+				case 0xF3: /* GeForce 6200 */
+				case 0xF4: /* GeForce 6600 */
+				case 0xF6: /* GeForce 6600 */
+				case 0xF7: /* guess */
+				case 0xF8: /* QuadroFX 3400/4400 */
+				case 0xF9: /* GeForce 6800 */
+					card_family=NV40;
+					break;
+				case 0xF5: /* GeForce 7800 */
+					card_family=G70;
+					break;
+			}
+			break;
+		default:
+			message("Unknown card");
+			card_family=G70;
+			break;
+	}
 	SysRes res = VG_(am_mmap_file_float_valgrind)(
 			ML_(nvinfo).devices[ML_(nvcard)].reg_size,
 			VKI_PROT_READ | VKI_PROT_WRITE,
@@ -32,7 +113,7 @@ void ML_(device_selected)(int fd) {
 	if (res.isError) {
 		VG_(tool_panic)("Failed mmapping device registers");
 	}
-	ML_(all_regs) = (UInt*)res.val;
+	all_regs = (UInt*)res.val;
 }
 
 static void smart_store_4_flush() {

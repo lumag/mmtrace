@@ -11,6 +11,8 @@ CFLAGS = \
 	-DVGA_$(ARCH)=1 \
 	-DVGO_$(OS)=1 \
 	-DVGP_$(PLATFORM)=1 \
+	-DMMTRACE=1 \
+	-Invidia/ \
 	-g -Wall -Wno-pointer-sign -Werror
 
 LDLIBS = \
@@ -36,4 +38,4 @@ clean:
 
 .PHONY: .depend
 .depend:
-	$(CC) $(CFLAGS) -M -MP $(OBJECTS:.o=.c) > .depend
+	-$(CC) $(CFLAGS) -M -MP $(OBJECTS:.o=.c) > .depend
