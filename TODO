@@ -8,6 +8,7 @@ main binary:
 dummy client:
 
 nvidia client:
+* implement gpu_ofs_to_agp !!!
 * reveng basic nv ioctls and parse results
         (have to replace /proc/*/maps parsing, etc).
 * import all information from renoveau

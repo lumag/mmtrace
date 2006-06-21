@@ -3,3 +3,4 @@ patches/CVS
 mmtrace
 .depend
 *.o
+nvidia

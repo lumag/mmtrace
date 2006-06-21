@@ -1,0 +1,18 @@
+MMTrace --- a valgrind tool for memory tracing. I still don't get some
+types of memaccess, but the miss is not so big.
+
+HowTo:
+1) Get valgrind 3.2.0
+2) apply patches from patches/ subdir
+3) compile and install valgrind
+
+4) get renoveau source.
+5) copy/link the following files from renoveau to nvidia/ subdir:
+   disasm_fp.c disasm_vp.c nv40_reg.h nv_hw.h nv_objects.h objects.c objects.h
+6) compile mmtrace
+7) copy mmtrace to the valgrind tools directory
+   (probably it's something like /usr/local/lib/valgrind/x86-linux/)
+
+8) valgrind --tool=mmtrace <your_GL_program>
+
+

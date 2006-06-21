@@ -1,5 +1,4 @@
 #include "mmtrace.h"
-#include "pub_tool_mallocfree.h"
 #include "pub_tool_tooliface.h"
 
 #include <sys/syscall.h>
@@ -26,7 +25,7 @@ static inline const mt_mmap_trace_t* mt_mmap_trace_get(Addr a) {
 static inline void mt_mmap_trace_set(Addr a, const mt_mmap_trace_t *entry) {
 	a = a >> VKI_PAGE_SHIFT;
 	if (mt_mmap_trace_table[a >> ADDR_FIRST_SHIFT] == NULL) {
-		mt_mmap_trace_table[a >> ADDR_FIRST_SHIFT] = VG_(calloc)(ADDR_MAP_SECOND_SIZE, sizeof(mt_mmap_trace_t**));
+		mt_mmap_trace_table[a >> ADDR_FIRST_SHIFT] = calloc(ADDR_MAP_SECOND_SIZE, sizeof(mt_mmap_trace_t**));
 	}
 	mt_mmap_trace_table[a >> ADDR_FIRST_SHIFT][a & (ADDR_MAP_FIRST_SIZE-1)] = entry;
 }
@@ -278,6 +277,17 @@ static void mt_instrument_expr(IRBB *bb, IRExpr **expr) {
 			mt_instrument_expr(bb, &(*expr)->Iex.Binop.arg1);
 			mt_instrument_expr(bb, &(*expr)->Iex.Binop.arg2);
 			break;
+		case Iex_Triop:
+			mt_instrument_expr(bb, &(*expr)->Iex.Triop.arg1);
+			mt_instrument_expr(bb, &(*expr)->Iex.Triop.arg2);
+			mt_instrument_expr(bb, &(*expr)->Iex.Triop.arg3);
+			break;
+		case Iex_Qop:
+			mt_instrument_expr(bb, &(*expr)->Iex.Qop.arg1);
+			mt_instrument_expr(bb, &(*expr)->Iex.Qop.arg2);
+			mt_instrument_expr(bb, &(*expr)->Iex.Qop.arg3);
+			mt_instrument_expr(bb, &(*expr)->Iex.Qop.arg4);
+			break;
 		case Iex_Unop:
 			mt_instrument_expr(bb, &(*expr)->Iex.Unop.arg);
 			break;
@@ -305,15 +315,16 @@ static void mt_instrument_expr(IRBB *bb, IRExpr **expr) {
 			mt_instrument_expr(bb, &(*expr)->Iex.Mux0X.expr0);
 			mt_instrument_expr(bb, &(*expr)->Iex.Mux0X.exprX);
 			break;
-		default:
+ 		default:
 			snprintf(buf, sizeof(buf), "unhandled expression: %d", (*expr)->tag);
 			VG_(tool_panic)(buf);
 			break;
 	}
 }
 static
-IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout, 
-                    Addr64 orig_addr_noredir, VexGuestExtents* vge,
+IRBB* mt_instrument(VgCallbackClosure* cc,
+		    IRBB* bb_in, VexGuestLayout* layout, 
+                    VexGuestExtents* vge,
                     IRType gWordTy, IRType hWordTy)
 {
 	IRBB *bb;
@@ -371,9 +382,9 @@ IRBB* mt_instrument(IRBB* bb_in, VexGuestLayout* layout,
 				}
 				break;
 			case Ist_Dirty:
-				VG_(printf)("Dirty statememtn: ");
+				printf("Dirty statememtn: ");
 				ppIRDirty(st->Ist.Dirty.details);
-				VG_(printf)("\n");
+				printf("\n");
 				mt_instrument_expr(bb, &st->Ist.Dirty.details->guard);
 				for (args = st->Ist.Dirty.details->args; *args != NULL; args++) {
 					mt_instrument_expr(bb, args);
@@ -403,7 +414,7 @@ static void mt_fini(Int exitcode)
 
 	for (i = 0; i < ADDR_MAP_FIRST_SIZE; i++) {
 		if (mt_mmap_trace_table[i] != NULL) {
-			VG_(free) (mt_mmap_trace_table[i]);
+			free(mt_mmap_trace_table[i]);
 			mt_mmap_trace_table[i] = NULL;
 		}
 	}

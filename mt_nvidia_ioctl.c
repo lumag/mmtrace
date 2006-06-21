@@ -28,7 +28,7 @@ void ML_(trace_pre_ioctl)(int fd, Int request, void* arg) {
 		return;
 	}
 
-	VG_(message)(Vg_UserMsg, "ioctl: fd=%d nr=%d, arg=%08x, size=%d", fd, ioctl_nr, arg, ioctl_size);
+	VG_(message)(Vg_UserMsg, "ioctl: fd=%d nr=%02x, arg=%08x, size=%d", fd, ioctl_nr, arg, ioctl_size);
 
 	this_ioctl_trace = True;
 	if ((ioctl_dir & _VKI_IOC_WRITE) && ioctl_size > 0) {
@@ -38,6 +38,8 @@ void ML_(trace_pre_ioctl)(int fd, Int request, void* arg) {
 
 void ML_(trace_post_ioctl)(SysRes res) {
 	int i;
+
+	unsigned int *data = ioctl_data;
 
 	if (!this_ioctl_trace) {
 		return;
@@ -68,6 +70,11 @@ void ML_(trace_post_ioctl)(SysRes res) {
 				}
 			}
 
+			break;
+		case 0x2b:
+			message("object creation: %08x, type %x, parent %08x\n",
+					data[2], data[3], data[1]);
+			object_create(data[1], data[2], data[3]);
 			break;
 	}
 }

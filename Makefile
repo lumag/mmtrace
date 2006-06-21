@@ -2,7 +2,6 @@ PKG_CONFIG = pkg-config --print-errors
 
 ARCH = $(shell $(PKG_CONFIG) valgrind --variable=arch)
 OS = $(shell $(PKG_CONFIG) valgrind --variable=os)
-PLATFORM = $(subst -,_,$(shell $(PKG_CONFIG) valgrind --variable=platform))
 
 LOAD_ADDR = $(shell $(PKG_CONFIG) valgrind --variable=valt_load_address)
 
@@ -10,13 +9,12 @@ CFLAGS = \
 	$(shell $(PKG_CONFIG) valgrind --cflags) \
 	-DVGA_$(ARCH)=1 \
 	-DVGO_$(OS)=1 \
-	-DVGP_$(PLATFORM)=1 \
 	-DMMTRACE=1 \
 	-Invidia/ \
-	-g -Wall -Wno-pointer-sign -Werror
+	-g3 -Wall -Wno-pointer-sign -Werror
 
 LDLIBS = \
-	$(shell $(PKG_CONFIG) valgrind --libs)
+	$(shell $(PKG_CONFIG) valgrind --libs | sed -e "s/@VG_PLATFORM@/$(ARCH)-$(OS)/")
 
 LDFLAGS = \
 	-static -Wl,-defsym,valt_load_address=$(LOAD_ADDR) \
@@ -40,5 +38,3 @@ clean:
 .depend: $(OBJECTS:.o=.c)
 	-$(CC) $(CFLAGS) -M -MP $(OBJECTS:.o=.c) > .depend
 
-mt_nvidia_objects.c:
-	[ -r $@ ] || ln -s nvidia/objects.c $@

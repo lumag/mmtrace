@@ -223,3 +223,9 @@ void ML_(trace_flush)() {
 	ML_(fifo_flush)();
 	smart_store_4_flush();
 }
+
+
+unsigned int *gpu_ofs_to_agp(unsigned long ofs) {
+//#warning FIXME
+	return NULL;
+}

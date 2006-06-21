@@ -1,0 +1,67 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 30_reinterp_f64_as_i32.dpatch by  <mitya@school.ioffe.ru>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: No description.
+
+@DPATCH@
+diff -urNad valgrind-3.2.0~/VEX/priv/host-x86/isel.c valgrind-3.2.0/VEX/priv/host-x86/isel.c
+--- valgrind-3.2.0~/VEX/priv/host-x86/isel.c	2006-06-21 21:00:43.000000000 +0400
++++ valgrind-3.2.0/VEX/priv/host-x86/isel.c	2006-06-21 21:04:25.000000000 +0400
+@@ -1101,6 +1101,25 @@
+             addInstr(env, X86Instr_Sh32(Xsh_SAR, 31, dst));
+             return dst;
+          }
++         case Iop_ReinterpF32asI32: {
++            HReg rf   = iselFltExpr(env, e->Iex.Unop.arg);
++            HReg dst  = newVRegI(env);
++            X86AMode* zero_esp = X86AMode_IR(0, hregX86_ESP());
++            /* paranoia */
++            set_FPU_rounding_default(env);
++            /* subl $4, %esp */
++            sub_from_esp(env, 4);
++            /* gstF %rf, 0(%esp) */
++            addInstr(env,
++                     X86Instr_FpLdSt(False/*store*/, 4, rf, zero_esp));
++            /* movl 0(%esp), %dst */
++            addInstr(env, 
++                     X86Instr_Alu32R(Xalu_MOV, X86RMI_Mem(zero_esp), dst));
++            /* addl $8, %esp */
++            add_to_esp(env, 4);
++            return dst;
++         }
++
+          case Iop_Ctz32: {
+             /* Count trailing zeroes, implemented by x86 'bsfl' */
+             HReg dst = newVRegI(env);
+diff -urNad valgrind-3.2.0~/VEX/priv/ir/irdefs.c valgrind-3.2.0/VEX/priv/ir/irdefs.c
+--- valgrind-3.2.0~/VEX/priv/ir/irdefs.c	2006-06-06 03:29:47.000000000 +0400
++++ valgrind-3.2.0/VEX/priv/ir/irdefs.c	2006-06-21 21:05:42.000000000 +0400
+@@ -295,6 +295,7 @@
+       case Iop_ReinterpF64asI64: vex_printf("ReinterpF64asI64"); return;
+       case Iop_ReinterpI64asF64: vex_printf("ReinterpI64asF64"); return;
+       case Iop_ReinterpI32asF32: vex_printf("ReinterpI32asF32"); return;
++      case Iop_ReinterpF32asI32: vex_printf("ReinterpF32asI32"); return;
+ 
+       case Iop_I32UtoFx4: vex_printf("Iop_I32UtoFx4"); return;
+       case Iop_I32StoFx4: vex_printf("Iop_I32StoFx4"); return;
+@@ -1622,6 +1623,7 @@
+       case Iop_ReinterpI64asF64: UNARY(Ity_I64, Ity_F64);
+       case Iop_ReinterpF64asI64: UNARY(Ity_F64, Ity_I64);
+       case Iop_ReinterpI32asF32: UNARY(Ity_I32, Ity_F32);
++      case Iop_ReinterpF32asI32: UNARY(Ity_F32, Ity_I32);
+ 
+       case Iop_AtanF64: case Iop_Yl2xF64:  case Iop_Yl2xp1F64: 
+       case Iop_ScaleF64: case Iop_PRemF64: case Iop_PRem1F64:
+diff -urNad valgrind-3.2.0~/VEX/pub/libvex_ir.h valgrind-3.2.0/VEX/pub/libvex_ir.h
+--- valgrind-3.2.0~/VEX/pub/libvex_ir.h	2006-06-21 21:00:43.000000000 +0400
++++ valgrind-3.2.0/VEX/pub/libvex_ir.h	2006-06-21 21:04:25.000000000 +0400
+@@ -403,7 +403,7 @@
+       /* Reinterpretation.  Take an F64 and produce an I64 with 
+          the same bit pattern, or vice versa. */
+       Iop_ReinterpF64asI64, Iop_ReinterpI64asF64,
+-                            Iop_ReinterpI32asF32,
++      Iop_ReinterpF32asI32, Iop_ReinterpI32asF32,
+ 
+       /* --- guest x86/amd64 specifics, not mandated by 754. --- */
+ 
