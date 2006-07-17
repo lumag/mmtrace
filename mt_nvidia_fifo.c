@@ -38,7 +38,8 @@ void ML_(fifo_store_4)(Char *name, ULong offset, UInt data) {
 	static char buf[BUFSIZ];
 	int pos = 0;
 
-	pos += snprintf(buf+pos, BUFSIZ-pos, "FIFO: [%08llx] = %08x", offset, data);
+//	pos += snprintf(buf+pos, BUFSIZ-pos, "FIFO: [%08llx] = %08x", offset, data);
+	pos += snprintf(buf+pos, BUFSIZ-pos, "FIFO: [%08llx]: ", offset);
 
 	if (fifo_cmdstart + fifo_cmdlen*4 < offset || offset <= fifo_cmdstart) {
 
@@ -67,7 +68,7 @@ void ML_(fifo_store_4)(Char *name, ULong offset, UInt data) {
 		int cur_offset = fifo_object_offset + offset - fifo_cmdstart - 4;
 		if (cur_offset == 0) {
 			fifo_channels[fifo_channel].name = data;
-			fifo_channels[fifo_channel].type = find_object_type(data);
+			fifo_channels[fifo_channel].type = get_object_type(data);
 		}
 //		pos += snprintf(buf+pos, BUFSIZ-pos, "  object: %08x type=%02x  offset=%04x",
 //				fifo_channels[fifo_channel].name,

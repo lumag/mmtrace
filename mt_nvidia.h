@@ -31,6 +31,7 @@ extern UInt ML_(card_family);
 #define card_family ML_(card_family)
 
 #define find_object_type	ML_(find_object_type)
+#define get_object_type		ML_(get_object_type)
 #define format_load		ML_(format_load)
 #define print_format		ML_(print_format)
 #define print_float		ML_(print_float)
