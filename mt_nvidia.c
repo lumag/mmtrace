@@ -105,15 +105,17 @@ void ML_(device_selected)(int fd) {
 			card_family=G70;
 			break;
 	}
-	SysRes res = VG_(am_mmap_file_float_valgrind)(
-			ML_(nvinfo).devices[ML_(nvcard)].reg_size,
-			VKI_PROT_READ | VKI_PROT_WRITE,
-			fd,
-			ML_(nvinfo).devices[ML_(nvcard)].reg_addr);
-	if (res.isError) {
-		VG_(tool_panic)("Failed mmapping device registers");
+	if (all_regs == NULL) {
+		SysRes res = VG_(am_mmap_file_float_valgrind)(
+				ML_(nvinfo).devices[ML_(nvcard)].reg_size,
+				VKI_PROT_READ | VKI_PROT_WRITE,
+				fd,
+				ML_(nvinfo).devices[ML_(nvcard)].reg_addr);
+		if (res.isError) {
+			VG_(tool_panic)("Failed mmapping device registers");
+		}
+		all_regs = (UInt*)res.val;
 	}
-	all_regs = (UInt*)res.val;
 }
 
 static void smart_store_4_flush() {

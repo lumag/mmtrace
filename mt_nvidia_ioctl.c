@@ -2,6 +2,7 @@
 #include "mt_client_common.h"
 
 #include "mt_nvidia.h"
+#include <sys/select.h>
 
 #define NV_IOCTL_MAGIC      'F'
 
@@ -13,7 +14,7 @@ static int ioctl_size;
 static void *ioctl_data;
 
 static int mt_nv_ctrl_fd = -1;
-static int mt_nv_dev_fd = -1;
+static fd_set mt_nv_dev_fds;
 
 void ML_(trace_pre_ioctl)(int fd, Int request, void* arg) {
 
@@ -79,38 +80,36 @@ void ML_(trace_post_ioctl)(SysRes res) {
 	}
 }
 
-void ML_(trace_pre_open)(HChar *name, UInt flags) {
-	if (!VG_(strcmp)("/dev/nvidiactl", name)) {
-		VG_(message)(Vg_UserMsg, "Control device open...");
-		mt_nv_ctrl_fd = -2;
-	} else if (!VG_(strncmp)("/dev/nvidia", name, 11)) {
-		VG_(message)(Vg_UserMsg, "Card device open...");
+static HChar* mt_open_fname = NULL;
 
-		if (mt_nv_dev_fd == -1) {
-			mt_nv_dev_fd = -2;
-			ML_(nvcard) = name[11] - '0';
-		}
-	}
+void ML_(trace_pre_open)(HChar *name, UInt flags) {
+	mt_open_fname = VG_(strdup)(name);
 }
 
 void ML_(trace_post_open)(SysRes res) {
-	if (mt_nv_ctrl_fd == -2) {
+	if (!VG_(strcmp)("/dev/nvidiactl", mt_open_fname)) {
+		VG_(message)(Vg_UserMsg, "Control device opened at fd %d", res.val);
 		mt_nv_ctrl_fd = res.val;
-		VG_(message)(Vg_UserMsg, "Opened at fd %d", res.val);
-	} else if (mt_nv_dev_fd == -2) {
-		mt_nv_dev_fd = res.val;
-		VG_(message)(Vg_UserMsg, "Opened at fd %d", res.val);
-		ML_(device_selected)(mt_nv_dev_fd);
+	} else if (!VG_(strncmp)("/dev/nvidia", mt_open_fname, 11)) {
+		VG_(message)(Vg_UserMsg, "Card device opened at fd %d", res.val);
+		FD_SET(res.val, &mt_nv_dev_fds);
+		if (ML_(nvcard) == -1) {
+			ML_(nvcard) = mt_open_fname[11] - '0';
+			ML_(device_selected)(res.val);
+		}
 	}
+
+	free(mt_open_fname);
+	mt_open_fname = NULL;
 }
 
 void ML_(trace_pre_close)(int fd) {
 	if (fd == mt_nv_ctrl_fd) {
 		mt_nv_ctrl_fd = -1;
 		VG_(message)(Vg_UserMsg, "Closed control device");
-	} else if (fd == mt_nv_dev_fd) {
-		mt_nv_dev_fd = -1;
-		VG_(message)(Vg_UserMsg, "Closed card device");
+	} else if (FD_ISSET(fd, &mt_nv_dev_fds)) {
+		FD_CLR(fd, &mt_nv_dev_fds);
+		VG_(message)(Vg_UserMsg, "Closed card device at fd %d", fd);
 	}
 }
 void ML_(trace_post_close)(SysRes res) {
