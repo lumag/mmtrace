@@ -197,6 +197,7 @@ static const mt_mmap_trace_t fifo_trace = {
 #define FIFO_SIZE1 0x102000 
 #define FIFO_SIZE2 0x103000 
 #define FIFO_SIZE3 0x101000 
+#define FIFO_SIZE4 0x10000 
 
 const mt_mmap_trace_t *ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg) {
 	if (seg == NULL
@@ -213,7 +214,7 @@ const mt_mmap_trace_t *ML_(get_mmap_trace)(Addr addr, SizeT len, NSegment *seg) 
 
 //	VG_(message)(Vg_UserMsg, "map: %08x %08llx size %x", seg->start, seg->offset, len);
 
-	if (len == FIFO_SIZE1 || len == FIFO_SIZE2 || len == FIFO_SIZE3) {
+	if (len == FIFO_SIZE1 || len == FIFO_SIZE2 || len == FIFO_SIZE3 || len == FIFO_SIZE4) {
 //		VG_(message)(Vg_UserMsg, "detected FIFO map");
 		return &fifo_trace;
 	}

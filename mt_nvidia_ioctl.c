@@ -72,8 +72,9 @@ void ML_(trace_post_ioctl)(SysRes res) {
 			}
 
 			break;
+		case 0x28:
 		case 0x2b:
-			message("object creation: %08x, type %x, parent %08x\n",
+			message("object creation: %08x, type %x, parent %08x",
 					data[2], data[3], data[1]);
 			object_create(data[1], data[2], data[3]);
 			break;
